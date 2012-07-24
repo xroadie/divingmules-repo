@@ -20,7 +20,6 @@ __language__ = __settings__.getLocalizedString
 home = __settings__.getAddonInfo('path')
 icon = xbmc.translatePath( os.path.join( home, 'icon.png' ) )
 fanart = xbmc.translatePath( os.path.join( home, 'fanart.jpg' ) )
-wc_location = __settings__.getSetting('location')
 cache = StorageServer.StorageServer("weather_channel", 24)
 try:
     location = xbmc.getInfoLabel("Window(Weather).Property(Location)")
@@ -47,7 +46,7 @@ def make_request(url):
                 
                 
 def get_location():
-        url = 'http://xoap.weather.com/search/search?where=%s' %location
+        url = 'http://xoap.weather.com/search/search?where=%s' %location.replace(' ','%20')
         soup = BeautifulSoup(make_request(url))
         wc_id = soup.loc['id']
         cache.set("location", location+" - "+wc_id)
@@ -98,9 +97,9 @@ def get_forcast_video():
     
 
 def categories():
-        if not location is None:
+        if not wc_location is None:
             get_forcast_video()
-        addDir('Weather Maps','',4,icon)
+            addDir('Weather Maps','',4,icon)
         addPlaylist('Play Top Stories','',3,icon)
         addDir('News','news',1,icon)
         addDir('Most Popular','popular',1,icon)
@@ -173,7 +172,11 @@ def play_latest():
 
         
 def get_images(wc_location, mapdest):
-        url = 'http://www.weather.com/weather/map/%s?mapdest=%s' %(wc_location, mapdest)
+        print mapdest
+        if mapdest.startswith('/maps'):
+            url = 'http://www.weather.com%s' %mapdest
+        else:
+            url = 'http://www.weather.com/weather/map/%s?mapdest=%s' %(wc_location, mapdest)
         soup = BeautifulSoup(make_request(url))
         images = []
         try:
@@ -185,18 +188,12 @@ def get_images(wc_location, mapdest):
             print 'No animation'
             try:
                 img_url = soup('img', attrs={'name' : 'mapImg'})[0]['src']
-                images.append(img_url)
+                images.append(str(img_url))
             except:
                 print '--- img_url error ---'
-        print images
-        clear_playlist = xbmc.executeJSONRPC('{"jsonrpc": "2.0", "method": "Playlist.Clear", "params": {"playlistid":2}, "id": 1}')
-        items = []
-        for i in images:
-            item = '{ "jsonrpc": "2.0", "method": "Playlist.Add", "params": { "playlistid": 2 , "item": {"file": "%s"} }, "id": 1 }' %i
-            add_item = items.append(str(item))
-        add_playlist = xbmc.executeJSONRPC(str(items).replace("'",""))
-        get_playlist = json.loads(xbmc.executeJSONRPC('{"jsonrpc": "2.0", "method": "Playlist.GetItems", "params": {"playlistid":2}, "id": 1}'))
-        play = xbmc.executeJSONRPC('{ "jsonrpc": "2.0", "method": "Player.Open","params":{"item":{"playlistid":2}} }')
+                return
+        j_img = str(images).replace(', ','!!')
+        xbmc.executebuiltin('XBMC.RunScript(%s, %s)' %(os.path.join(home, 'image.py'), j_img))
 
 
 def get_params():
@@ -260,9 +257,10 @@ try:
         cache_maps(wc_location)
         print '---- cached location ----'
         print l_cache
+    else:
+        wc_location = l_cache.split(' - ')[1]
 except:
-    pass
-
+    wc_location = None
         
 params=get_params()
 url=None
