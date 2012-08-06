@@ -1,4 +1,5 @@
-''' Credit to Stacked for the original plugin.'''
+##  Credit to Stacked for the original plugin.
+##  Thanks to toastcutter for save passwords patch
 
 import urllib
 import urllib2
@@ -35,6 +36,7 @@ try:
 except:
     FAV = None
 search_q = xbmc.translatePath( os.path.join( profile, 'search_queries' ) )
+passwords_file = xbmc.translatePath( os.path.join( profile, 'passwords' ) )
 try:
     SEARCH_LIST = open(search_q).read()
 except:
@@ -186,6 +188,7 @@ def getUserFavorites(user):
 
 
 def Index(data, subCat, catId, page):
+        print(data, subCat, catId, page)
         if debug == 'true':
             print '--- json data ---'
             print data
@@ -336,7 +339,7 @@ def playLive(name, play=False, password=None):
         swf_url = getSwfUrl(name)
         headers = {'User-agent' : 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:6.0) Gecko/20100101 Firefox/6.0',
                    'Referer' : swf_url}
-        url = 'http://usher.justin.tv/find/'+name+'.json?type=live&group='
+        url = 'http://usher.justin.tv/find/'+name+'.json?type=any&group=&channel_subscription='
         data = json.loads(get_request(url,headers))
         if data == []:
             if debug == 'true':
@@ -344,19 +347,42 @@ def playLive(name, play=False, password=None):
             xbmc.executebuiltin("XBMC.Notification(Jtv,Live Data Not Found,5000,"+ICON+")")
             return
         elif data[0]['needed_info'] == 'private':
-            password = getPassword()
+            password = getPassword(name)
             if password is None:
                 return
             url += '&private_code='+password
             data = json.loads(get_request(url,headers))
+        if debug == 'true':
+            print '---- Live Channel Data ----'
+            print data
         try:
             token = ' jtv='+data[0]['token'].replace('\\','\\5c').replace(' ','\\20').replace('"','\\22')
+            rtmp = data[0]['connect']+'/'+data[0]['play']
         except:
             if debug == 'true':
-                print '---- User Token Error ----'
-            xbmc.executebuiltin("XBMC.Notification(Jtv,User Token Error ,5000,"+ICON+")")
-            return
-        rtmp = data[0]['connect']+'/'+data[0]['play']
+                print '---- User Token Error [0] ----'
+                print data[0]
+            try:
+                token = ' jtv='+data[1]['token'].replace('\\','\\5c').replace(' ','\\20').replace('"','\\22')
+                rtmp = data[1]['connect']+'/'+data[1]['play']
+            except:
+                if debug == 'true':
+                    print '---- User Token Error [1] ----'
+                    try:
+                        print data[1]
+                    except: pass
+                try:
+                    token = ' jtv='+data[2]['token'].replace('\\','\\5c').replace(' ','\\20').replace('"','\\22')
+                    rtmp = data[2]['connect']+'/'+data[2]['play']
+                except:
+                    if debug == 'true':
+                        print '---- User Token Error [2] ----'
+                        try:
+                            print data[2]
+                        except: pass
+                    xbmc.executebuiltin("XBMC.Notification(Jtv,User Token Error ,5000,"+ICON+")")
+                    return
+
         swf = ' swfUrl=%s swfVfy=1 live=1' % swf_url
         Pageurl = ' Pageurl=http://www.justin.tv/'+name
         url = rtmp+token+swf+Pageurl
@@ -381,12 +407,31 @@ def getSwfUrl(channel_name):
         return response.geturl()
 
 
-def getPassword():
-        keyboard = xbmc.Keyboard('','Enter Password')
+def loadPasswords():
+        passwords = {}
+        if settings.getSetting('save_passwords') == 'true':
+            if xbmcvfs.exists(passwords_file):
+                passwords = json.loads(open(passwords_file).read())
+        return passwords
+
+def savePasswords(passwords):
+        if settings.getSetting('save_passwords') == 'true':
+            f = open(passwords_file, "w")
+            f.write(json.dumps(passwords))
+            f.close()
+
+def getPassword(name):
+        passwords = loadPasswords()
+        password = ''
+        if name in passwords:
+            password = passwords[name]
+        keyboard = xbmc.Keyboard(password,'Enter Password')
         keyboard.doModal()
         if (keyboard.isConfirmed() == False):
             return
         password = keyboard.getText()
+        passwords[name] = password
+        savePasswords(passwords)
         if len(password) == 0:
             return None
         else:
@@ -428,14 +473,12 @@ def Search(name):
 def remove_search(name):
         search_list = json.loads(open(search_q).read())
         for index in range(len(search_list)):
-            try:
-                if search_list[index]==name:
-                     del search_list[index]
-            except:
-                pass
-        a = open(search_q, "w")
-        a.write(json.dumps(search_list))
-        a.close()
+            if search_list[index]==name:
+                del search_list[index]
+                a = open(search_q, "w")
+                a.write(json.dumps(search_list))
+                a.close()
+                return
 
 
 def get_search():
@@ -456,10 +499,11 @@ def enterChannel():
         newStr = keyboard.getText()
         if len(newStr) == 0:
             return
-        try:
-            url = 'http://api.justin.tv/api/stream/list.json?channel='+newStr
-            Index(get_request(url), None, None, None)
-        except:
+        url = 'http://api.justin.tv/api/stream/list.json?channel='+newStr
+        search_results = get_request(url)
+        if not search_results == '[]':
+            Index(search_results, None, None, None)
+        else:
             xbmc.executebuiltin("XBMC.Notification(Jtv,Nothing found for "+newStr+",5000,"+ICON+")")
 
 
@@ -501,15 +545,12 @@ def addFavorite(name,thumb,title):
 def rmFavorite(name):
         data = json.loads(FAV)
         for index in range(len(data)):
-            try:
-                if data[index][0]==name:
-                    del data[index]
-                    a = open(favorites, "w")
-                    a.write(json.dumps(data))
-                    a.close()
-            except:
-                pass
-        getFavorites()
+            if data[index][0]==name:
+                del data[index]
+                a = open(favorites, "w")
+                a.write(json.dumps(data))
+                a.close()
+                return
 
 
 def get_params():
