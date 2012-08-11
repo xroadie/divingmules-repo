@@ -315,13 +315,14 @@ def Index(data, subCat, catId, page):
                 addDir('Next Page', '', 1, xbmc.translatePath( os.path.join( home, 'resources', 'icons','next.png' ) ), catId, subCat, addPage)
 
 
-def getVideos(name):
+def getVideos(name, url=None, page=None):
         headers = {'User-agent' : 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:6.0) Gecko/20100101 Firefox/6.0',
                    'Referer' : 'http://www.justin.tv/'+name}
-        url = 'http://api.justin.tv/api/channel/archives/'+name+'.json'
+        if url is None:
+            url = 'http://api.justin.tv/api/channel/archives/'+name+'.json'
         data = json.loads(get_request(url,headers))
         for i in data:
-            url = i['video_file_url']
+            video_url = i['video_file_url']
             title = i['title']
             part = 'Part: '+i['broadcast_part']
             if 'last_part' in i.keys():
@@ -332,7 +333,14 @@ def getVideos(name):
             thumb = i['image_url_medium']
             duration = i['length']
             desc = part+'\nStarted: '+started+'\nCreated: '+created
-            addLink(title+' - '+part,url,desc,duration,thumb)
+            addLink(title+' - '+part,video_url,desc,duration,thumb)
+        if len(data) == 20:
+            if page is None:
+                page = 1
+            else:
+                page += 1
+            url = url.split('?')[0]+'?offset='+str(page)
+            addDir('Next Page', url, 7, xbmc.translatePath( os.path.join( home, 'resources', 'icons','next.png' ) ), '', '', str(page))
 
 
 def playLive(name, play=False, password=None):
@@ -340,52 +348,29 @@ def playLive(name, play=False, password=None):
         headers = {'User-agent' : 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:6.0) Gecko/20100101 Firefox/6.0',
                    'Referer' : swf_url}
         url = 'http://usher.justin.tv/find/'+name+'.json?type=any&group=&channel_subscription='
+        if not password is None:
+            url += '&private_code='+password
         data = json.loads(get_request(url,headers))
         if data == []:
             if debug == 'true':
                 print '---- No Data, Live? ----'
             xbmc.executebuiltin("XBMC.Notification(Jtv,Live Data Not Found,5000,"+ICON+")")
             return
-        elif data[0]['needed_info'] == 'private':
-            password = getPassword(name)
+        stream = getQuality(data)
+        if stream.endswith('private'):
             if password is None:
-                return
+                password = getPassword(name)
+                if password is None:
+                    password = ''
             url += '&private_code='+password
-            data = json.loads(get_request(url,headers))
+            stream = getQuality(json.loads(get_request(url,headers)), True)
+            if stream is None or stream.endswith('private'):
+                return
         if debug == 'true':
-            print '---- Live Channel Data ----'
-            print data
-        try:
-            token = ' jtv='+data[0]['token'].replace('\\','\\5c').replace(' ','\\20').replace('"','\\22')
-            rtmp = data[0]['connect']+'/'+data[0]['play']
-        except:
-            if debug == 'true':
-                print '---- User Token Error [0] ----'
-                print data[0]
-            try:
-                token = ' jtv='+data[1]['token'].replace('\\','\\5c').replace(' ','\\20').replace('"','\\22')
-                rtmp = data[1]['connect']+'/'+data[1]['play']
-            except:
-                if debug == 'true':
-                    print '---- User Token Error [1] ----'
-                    try:
-                        print data[1]
-                    except: pass
-                try:
-                    token = ' jtv='+data[2]['token'].replace('\\','\\5c').replace(' ','\\20').replace('"','\\22')
-                    rtmp = data[2]['connect']+'/'+data[2]['play']
-                except:
-                    if debug == 'true':
-                        print '---- User Token Error [2] ----'
-                        try:
-                            print data[2]
-                        except: pass
-                    xbmc.executebuiltin("XBMC.Notification(Jtv,User Token Error ,5000,"+ICON+")")
-                    return
-
+            print '--- Stream: %s ---' %stream
         swf = ' swfUrl=%s swfVfy=1 live=1' % swf_url
         Pageurl = ' Pageurl=http://www.justin.tv/'+name
-        url = rtmp+token+swf+Pageurl
+        url = stream+swf+Pageurl
         if play == True:
             info = xbmcgui.ListItem(name)
             playlist = xbmc.PlayList(1)
@@ -405,6 +390,49 @@ def getSwfUrl(channel_name):
         req = urllib2.Request(base_url, None, headers)
         response = urllib2.urlopen(req)
         return response.geturl()
+
+
+def getQuality(data, password=False):
+        s_type = {'0' : 'live',
+                  '1' : '720p',
+                  '2' : '480p',
+                  '3' : '360p',
+                  '4' : '240p',
+                  '5' : 'iphonehigh',
+                  '6' : 'iphonelow'}
+        q_type = s_type[settings.getSetting('stream_quality')]
+        streams = []
+        token = None
+        for i in data:
+            try:
+                token = ' jtv='+i['token'].replace('\\','\\5c').replace(' ','\\20').replace('"','\\22')
+            except:
+                if not password:
+                    if i['needed_info'] == 'private':
+                            token = 'private'
+                else: continue
+            rtmp = i['connect']+'/'+i['play']
+            if q_type == i['type']:
+                print '---- Stream Type: %s ----' %i['type']
+                return(rtmp+token)
+            else:
+                if token is not None:
+                    streams.append((i['type'], rtmp, token))
+                continue
+        if len(streams) < 1:
+            print '----- Token Error ------'
+            return
+        elif len(streams) == 1:
+            print '---- Stream Type: %s ----' %streams[0][0]
+            return(streams[0][1]+streams[0][2])
+        else:
+            for i in range(len(s_type)):
+                quality = s_type[str(i)]
+                for q in streams:
+                    if q[0] == quality:
+                        print '---- Stream Type: %s ----' %q[0]
+                        return(q[1]+q[2])
+                    else: continue
 
 
 def loadPasswords():
@@ -580,7 +608,7 @@ def addDir(name,url,mode,iconimage,catId,subCat,page,showcontext=False):
         liz.setProperty( "Fanart_Image", fanart )
         if showcontext:
             if name in SEARCH_LIST:
-                    contextMenu = [('Remove','XBMC.Container.Update(%s?url=&mode=13&name=%s)' %(sys.argv[0], urllib.quote_plus(name)))]
+                    contextMenu = [('Remove','XBMC.Container.Update(%s?mode=13&name=%s)' %(sys.argv[0], urllib.quote_plus(name)))]
                     liz.addContextMenuItems(contextMenu)
         ok=xbmcplugin.addDirectoryItem(handle=int(sys.argv[1]),url=u,listitem=liz,isFolder=True)
         return ok
@@ -605,14 +633,14 @@ def addLiveLink(name,title,url,mode,iconimage,fanart,description,showcontext=Tru
         if showcontext:
             try:
                 if name in FAV:
-                    contextMenu = [('Remove from Jtv Favorites','XBMC.Container.Update(%s?url=&mode=9&name=%s)' %(sys.argv[0], urllib.quote_plus(name))),
-                    ('Get Channel Archives','XBMC.Container.Update(%s?url=&mode=7&name=%s)' %(sys.argv[0], urllib.quote_plus(name)))]
+                    contextMenu = [('Remove from Jtv Favorites','XBMC.Container.Update(%s?mode=9&name=%s)' %(sys.argv[0], urllib.quote_plus(name))),
+                    ('Get Channel Archives','XBMC.Container.Update(%s?mode=7&name=%s)' %(sys.argv[0], urllib.quote_plus(name)))]
                 else:
-                    contextMenu = [('Add to Jtv Favorites','XBMC.Container.Update(%s?url=&mode=8&name=%s&iconimage=%s&title=%s)' %(sys.argv[0], urllib.quote_plus(name), urllib.quote_plus(fanart), urllib.quote_plus(title.encode('ascii','ignore')))),
-                    ('Get Channel Archives','XBMC.Container.Update(%s?url=&mode=7&name=%s)' %(sys.argv[0], urllib.quote_plus(name)))]
+                    contextMenu = [('Add to Jtv Favorites','XBMC.Container.Update(%s?mode=8&name=%s&iconimage=%s&title=%s)' %(sys.argv[0], urllib.quote_plus(name), urllib.quote_plus(fanart), urllib.quote_plus(title.encode('ascii','ignore')))),
+                    ('Get Channel Archives','XBMC.Container.Update(%s?mode=7&name=%s)' %(sys.argv[0], urllib.quote_plus(name)))]
             except:
-                contextMenu = [('Add to Jtv Favorites','XBMC.Container.Update(%s?url=&mode=8&name=%s&iconimage=%s&title=%s)' %(sys.argv[0], urllib.quote_plus(name), urllib.quote_plus(fanart), urllib.quote_plus(title.encode('ascii','ignore')))),
-                ('Get Channel Archives','XBMC.Container.Update(%s?url=&mode=7&name=%s)' %(sys.argv[0], urllib.quote_plus(name)))]
+                contextMenu = [('Add to Jtv Favorites','XBMC.Container.Update(%s?mode=8&name=%s&iconimage=%s&title=%s)' %(sys.argv[0], urllib.quote_plus(name), urllib.quote_plus(fanart), urllib.quote_plus(title.encode('ascii','ignore')))),
+                ('Get Channel Archives','XBMC.Container.Update(%s?mode=7&name=%s)' %(sys.argv[0], urllib.quote_plus(name)))]
             liz.addContextMenuItems(contextMenu)
         ok=xbmcplugin.addDirectoryItem(handle=int(sys.argv[1]),url=u,listitem=liz)
         return ok
@@ -638,6 +666,7 @@ catId=None
 subCat=None
 page=None
 play=None
+quality=None
 
 try:
     url=urllib.unquote_plus(params["url"])
@@ -673,6 +702,10 @@ except:
     pass
 try:
     play=params["play"]
+except:
+    pass
+try:
+    quality=params["quality"]
 except:
     pass
 
@@ -712,7 +745,7 @@ elif mode==1:
 elif mode==2:
     print ""
     if play == 'True':
-        playLive(name, True)
+        playLive(name, True, quality=quality)
     else:
         playLive(name)
 
@@ -734,7 +767,7 @@ elif mode==6:
 
 elif mode==7:
     print ""
-    getVideos(name)
+    getVideos(name, url, page)
 
 elif mode==8:
     print ""
