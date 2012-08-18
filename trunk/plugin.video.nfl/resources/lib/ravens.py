@@ -1,22 +1,19 @@
-import urllib,urllib2,re,os,sys
-import xbmcplugin,xbmcgui,xbmcaddon
+import urllib
+import urllib2
+import re
+import os
+import sys
+import xbmcplugin
+import xbmcgui
+import xbmcaddon
 from BeautifulSoup import BeautifulSoup
+import resources.lib.common as common
 
 __settings__ = xbmcaddon.Addon(id='plugin.video.nfl')
 home = __settings__.getAddonInfo('path')
+fanart = common.teams_['BAL']['fanart']
+icon = common.teams_['BAL']['thumb']
 
-icon = 'http://farm7.static.flickr.com/6121/6009301002_16eaf2f9b4_m.jpg'
-fanart = 'http://farm7.static.flickr.com/6121/6009301002_739def1079_o.jpg'
-
-def addDir(name,url,mode,iconimage,fanart):
-        u=sys.argv[0]+"?url="+urllib.quote_plus(url)+"&mode="+str(mode)+"&name="+urllib.quote_plus(name)+"&fanart="+urllib.quote_plus(fanart)
-        ok=True
-        liz=xbmcgui.ListItem(name, iconImage="DefaultVideo.png", thumbnailImage=iconimage)
-        liz.setInfo( type="Video", infoLabels={ "Title": name } )
-        liz.setProperty( "Fanart_Image", fanart)
-        ok=xbmcplugin.addDirectoryItem(handle=int(sys.argv[1]),url=u,listitem=liz,isFolder=True)
-        return ok
-        
 
 def addLink(name,url,iconimage):
         ok=True
@@ -28,12 +25,12 @@ def addLink(name,url,iconimage):
 
         
 def _categories():
-        addDir('All Videos','http://www.baltimoreravens.com/Media/Video_Landing.aspx',36,icon,fanart)
-        addDir('Game Day','http://www.baltimoreravens.com/Media/Video_Landing.aspx?q=Game+Day',36,icon,fanart)
-        addDir('2010','http://www.baltimoreravens.com/Media/Video_Landing.aspx?q=2010',36,icon,fanart)
-        addDir('Regular Season','http://www.baltimoreravens.com/Media/Video_Landing.aspx?q=Regular+Season',36,icon,fanart)
-        addDir('NFL Network','http://www.baltimoreravens.com/Media/Video_Landing.aspx?q=NFL+Network',36,icon,fanart)
-        addDir('Rave TV','http://www.baltimoreravens.com/Media/Video_Landing.aspx?q=Rave+TV',36,icon,fanart)
+        common.addDir('All Videos','http://www.baltimoreravens.com/Media/Video_Landing.aspx',36,icon,fanart)
+        common.addDir('Game Day','http://www.baltimoreravens.com/Media/Video_Landing.aspx?q=Game+Day',36,icon,fanart)
+        common.addDir('2010','http://www.baltimoreravens.com/Media/Video_Landing.aspx?q=2010',36,icon,fanart)
+        common.addDir('Regular Season','http://www.baltimoreravens.com/Media/Video_Landing.aspx?q=Regular+Season',36,icon,fanart)
+        common.addDir('NFL Network','http://www.baltimoreravens.com/Media/Video_Landing.aspx?q=NFL+Network',36,icon,fanart)
+        common.addDir('Rave TV','http://www.baltimoreravens.com/Media/Video_Landing.aspx?q=Rave+TV',36,icon,fanart)
         
         
 def _index(url):
