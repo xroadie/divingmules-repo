@@ -412,13 +412,13 @@ def getQuality(data, password=False):
                             token = 'private'
                 else: continue
             rtmp = i['connect']+'/'+i['play']
-            if q_type == i['type']:
-                print '---- Stream Type: %s ----' %i['type']
-                return(rtmp+token)
-            else:
-                if token is not None:
+            if token is not None:
+                if q_type == i['type']:
+                    print '---- Stream Type: %s ----' %i['type']
+                    return(rtmp+token)
+                else:
                     streams.append((i['type'], rtmp, token))
-                continue
+            else: continue
         if len(streams) < 1:
             print '----- Token Error ------'
             return

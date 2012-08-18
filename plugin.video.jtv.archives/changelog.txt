@@ -1,3 +1,6 @@
+Version 0.3.2
+small change/fix for stream selection
+
 Version 0.3.1
 added page-nation to archived videos
 added setting "Set default stream quality", most channels only have "Live, iPhone High, and iPhone Low",
