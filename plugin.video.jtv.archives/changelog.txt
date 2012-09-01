@@ -1,3 +1,8 @@
+Version 0.3.3
+added "Blacklist Channel" to the context menu
+added "Bad Password" notification
+other bug fixes and error handling
+
 Version 0.3.2
 small change/fix for stream selection
 
