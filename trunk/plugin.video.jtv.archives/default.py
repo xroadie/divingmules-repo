@@ -30,17 +30,22 @@ cache = StorageServer.StorageServer("Jtv_Archives", 24)
 profile_dir = xbmcvfs.exists(profile)
 if not profile_dir:
     profile_dir = xbmcvfs.mkdir(profile)
-favorites = xbmc.translatePath( os.path.join( profile, 'favorites' ) )
+search_q = xbmc.translatePath(os.path.join(profile, 'search_queries'))
+passwords_file = xbmc.translatePath(os.path.join(profile, 'passwords'))
+blacklist = xbmc.translatePath(os.path.join(profile, 'blacklist'))
+favorites = xbmc.translatePath(os.path.join(profile, 'favorites'))
 try:
     FAV = open(favorites).read()
 except:
     FAV = None
-search_q = xbmc.translatePath( os.path.join( profile, 'search_queries' ) )
-passwords_file = xbmc.translatePath( os.path.join( profile, 'passwords' ) )
 try:
     SEARCH_LIST = open(search_q).read()
 except:
     SEARCH_LIST = None
+try:
+    BLACKLIST = json.loads(open(blacklist).read())
+except:
+    BLACKLIST = ''
 if debug == 'false':
     cache.dbg = False
 
@@ -117,12 +122,13 @@ def get_request(url, headers=None):
                     print 'We failed to reach a server.'
                     print 'Reason: ', e.reason
             if hasattr(e, 'code'):
-                if str(e.code) == '403':
-                    if 'archive' in url:
-                        xbmc.executebuiltin("XBMC.Notification(Jtv,No archives found for "+name+",5000,"+ICON+")")
+                if 'archive' in url:
+                    if str(e.code) == '403':
+                            xbmc.executebuiltin("XBMC.Notification(Jtv,No archives found for "+name+",5000,"+ICON+")")
+                else:
+                    xbmc.executebuiltin("XBMC.Notification(Jtv,HTTP ERROR: "+str(e.code)+",5000,"+ICON+")")
                 if debug == 'true':
                     print 'We failed with error code - %s.' % e.code
-                xbmc.executebuiltin("XBMC.Notification(Jtv,HTTP ERROR: "+str(e.code)+",5000,"+ICON+")")
 
 
 def getLanguageCode(language):
@@ -207,17 +213,6 @@ def Index(data, subCat, catId, page):
 
         for i in data:
             try:
-                subcat = i['channel']['subcategory_title']
-                if subcat is None or subcat == '':
-                    raise
-            except:
-                try:
-                    subcat = i['subcategory']
-                    if subcat is None:
-                        raise
-                except:
-                    subcat = ''
-            try:
                 name = i['channel']['login']
                 if name is None or name == '':
                     raise
@@ -228,6 +223,21 @@ def Index(data, subCat, catId, page):
                         raise
                 except:
                     name = str(i['image_url_medium']).split('/')[-1].split('-')[0]
+            if name in BLACKLIST:
+                if debug == 'true':
+                    print '----- Channel: %s - Blacklisted -----' %name
+                continue
+            try:
+                subcat = i['channel']['subcategory_title']
+                if subcat is None or subcat == '':
+                    raise
+            except:
+                try:
+                    subcat = i['subcategory']
+                    if subcat is None:
+                        raise
+                except:
+                    subcat = ''
             try:
                 title = i['channel']['status']
                 if title is None or title == '':
@@ -320,10 +330,18 @@ def getVideos(name, url=None, page=None):
                    'Referer' : 'http://www.justin.tv/'+name}
         if url is None:
             url = 'http://api.justin.tv/api/channel/archives/'+name+'.json'
-        data = json.loads(get_request(url,headers))
+        try:
+            data = json.loads(get_request(url,headers))
+        except TypeError:
+            print '--- exception: data ---'
+            return
         for i in data:
+            try:
+                title = i['title']
+            except KeyError:
+                print '--- KeyError ---'
+                title = ''
             video_url = i['video_file_url']
-            title = i['title']
             part = 'Part: '+i['broadcast_part']
             if 'last_part' in i.keys():
                 if i['last_part'] == 'true':
@@ -364,8 +382,10 @@ def playLive(name, play=False, password=None):
                     password = ''
             url += '&private_code='+password
             stream = getQuality(json.loads(get_request(url,headers)), True)
-            if stream is None or stream.endswith('private'):
+            if stream == 'Bad Password':
                 return
+        if stream.startswith('rtmp_key_error'):
+            return
         if debug == 'true':
             print '--- Stream: %s ---' %stream
         swf = ' swfUrl=%s swfVfy=1 live=1' % swf_url
@@ -402,16 +422,33 @@ def getQuality(data, password=False):
                   '6' : 'iphonelow'}
         q_type = s_type[settings.getSetting('stream_quality')]
         streams = []
-        token = None
         for i in data:
+            token = None
             try:
                 token = ' jtv='+i['token'].replace('\\','\\5c').replace(' ','\\20').replace('"','\\22')
-            except:
+            except KeyError:
+                try:
+                    print '--- Needed Info: %s ---' %i['needed_info']
+                except KeyError:
+                    pass
                 if not password:
                     if i['needed_info'] == 'private':
                             token = 'private'
-                else: continue
-            rtmp = i['connect']+'/'+i['play']
+                else:
+                    try:
+                        if i['error'] == 'Bad Password':
+                            xbmc.executebuiltin("XBMC.Notification(Jtv,Bad Password,5000,"+ICON+")")
+                            return 'Bad Password'
+                        else:
+                            print '--- Error: %s ---' %i['error']
+                            pass
+                    except KeyError:
+                        pass
+            try:
+                rtmp = i['connect']+'/'+i['play']
+            except KeyError:
+                rtmp = 'rtmp_key_error'
+                print'--- rtmp exception ---'
             if token is not None:
                 if q_type == i['type']:
                     print '---- Stream Type: %s ----' %i['type']
@@ -442,11 +479,13 @@ def loadPasswords():
                 passwords = json.loads(open(passwords_file).read())
         return passwords
 
+
 def savePasswords(passwords):
         if settings.getSetting('save_passwords') == 'true':
             f = open(passwords_file, "w")
             f.write(json.dumps(passwords))
             f.close()
+
 
 def getPassword(name):
         passwords = loadPasswords()
@@ -581,6 +620,20 @@ def rmFavorite(name):
                 return
 
 
+def addToBlacklist(name):
+        blacklist_ = xbmcvfs.exists(blacklist)
+        if not blacklist_:
+            blacklist_file = xbmc.makeLegalFilename(blacklist)
+            black_list = []
+        else:
+            black_list = json.loads(open(blacklist, "r").read())
+        black_list.append(name)
+        f = open(blacklist, "w")
+        f.write(json.dumps(black_list))
+        f.close
+        return
+
+
 def get_params():
         param=[]
         paramstring=sys.argv[2]
@@ -630,18 +683,21 @@ def addLiveLink(name,title,url,mode,iconimage,fanart,description,showcontext=Tru
         liz.setInfo( type="Video", infoLabels={ "Title": title, "Plot": description } )
         liz.setProperty( "Fanart_Image", fanart)
         liz.setProperty('IsPlayable', 'true')
+        contextMenu = []
         if showcontext:
-            try:
+            if FAV:
                 if name in FAV:
-                    contextMenu = [('Remove from Jtv Favorites','XBMC.Container.Update(%s?mode=9&name=%s)' %(sys.argv[0], urllib.quote_plus(name))),
-                    ('Get Channel Archives','XBMC.Container.Update(%s?mode=7&name=%s)' %(sys.argv[0], urllib.quote_plus(name)))]
+                    contextMenu.append(('Remove from Jtv Favorites','XBMC.Container.Update(%s?mode=9&name=%s)'
+                                        %(sys.argv[0], urllib.quote_plus(name))))
                 else:
-                    contextMenu = [('Add to Jtv Favorites','XBMC.Container.Update(%s?mode=8&name=%s&iconimage=%s&title=%s)' %(sys.argv[0], urllib.quote_plus(name), urllib.quote_plus(fanart), urllib.quote_plus(title.encode('ascii','ignore')))),
-                    ('Get Channel Archives','XBMC.Container.Update(%s?mode=7&name=%s)' %(sys.argv[0], urllib.quote_plus(name)))]
-            except:
-                contextMenu = [('Add to Jtv Favorites','XBMC.Container.Update(%s?mode=8&name=%s&iconimage=%s&title=%s)' %(sys.argv[0], urllib.quote_plus(name), urllib.quote_plus(fanart), urllib.quote_plus(title.encode('ascii','ignore')))),
-                ('Get Channel Archives','XBMC.Container.Update(%s?mode=7&name=%s)' %(sys.argv[0], urllib.quote_plus(name)))]
-            liz.addContextMenuItems(contextMenu)
+                    contextMenu.append(('Add to Jtv Favorites','XBMC.Container.Update(%s?mode=8&name=%s&iconimage=%s&title=%s)'
+                                        %(sys.argv[0], urllib.quote_plus(name), urllib.quote_plus(fanart), urllib.quote_plus(title.encode('ascii','ignore')))))
+            else:
+                contextMenu.append(('Add to Jtv Favorites','XBMC.Container.Update(%s?mode=8&name=%s&iconimage=%s&title=%s)'
+                                    %(sys.argv[0], urllib.quote_plus(name), urllib.quote_plus(fanart), urllib.quote_plus(title.encode('ascii','ignore')))))
+            contextMenu.append(('Get Channel Archives','XBMC.Container.Update(%s?mode=7&name=%s)' %(sys.argv[0], urllib.quote_plus(name))))
+            contextMenu.append(('Blacklist Channel','XBMC.Container.Update(%s?mode=14&name=%s)' %(sys.argv[0], urllib.quote_plus(name))))
+        liz.addContextMenuItems(contextMenu)
         ok=xbmcplugin.addDirectoryItem(handle=int(sys.argv[1]),url=u,listitem=liz)
         return ok
 
@@ -791,5 +847,9 @@ elif mode==12:
 elif mode==13:
     print ""
     remove_search(name)
+
+elif mode==14:
+    print ""
+    addToBlacklist(name)
 
 xbmcplugin.endOfDirectory(int(sys.argv[1]))
