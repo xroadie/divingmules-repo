@@ -37,6 +37,7 @@ def makeRequest(url):
             response.close()
             return data
         except urllib2.URLError, e:
+            print 'URL: '+url
             if hasattr(e, 'code'):
                 print 'We failed with error code - %s.' % e.code
                 xbmc.executebuiltin("XBMC.Notification(LiveStreams,We failed with error code - "+str(e.code)+",10000,"+icon+")")
@@ -45,19 +46,19 @@ def makeRequest(url):
                 print 'Reason: ', e.reason
                 xbmc.executebuiltin("XBMC.Notification(LiveStreams,We failed to reach a server. - "+str(e.reason)+",10000,"+icon+")")
 
+
 def getSources():
+        if addon.getSetting("browse_xml_database") == "true":
+            addDir('XML Database','http://xbmcplus.xb.funpic.de/up/data/files/',15,icon,fanart,'','','')
         if os.path.exists(favorites)==True:
             addDir('Favorites','url',4,xbmc.translatePath(os.path.join(home, 'resources', 'favorite.png')),fanart,'','','',False)
-        if os.path.exists(source_file)==False:
-            xbmc.executebuiltin("XBMC.Notification(LiveStreams,Choose type source and then select Add Source.,15000,"+icon+")")
-            addon.openSettings()
-            return
-        sources = json.loads(open(source_file,"r").read())
-        if len(sources) > 1:
-            for i in sources:
-                addDir(i[0],i[1].encode('utf-8'),1,icon,fanart,'','','')
-        else:
-            getData(sources[0][1],fanart)
+        if os.path.exists(source_file)==True:
+            sources = json.loads(open(source_file,"r").read())
+            if len(sources) > 1:
+                for i in sources:
+                    addDir(i[0],i[1].encode('utf-8'),1,icon,fanart,'','','')
+            else:
+                getData(sources[0][1],fanart)
 
 
 def addSource(url=None):
@@ -100,6 +101,9 @@ def addSource(url=None):
         addon.setSetting('new_url_source', "")
         addon.setSetting('new_file_source', "")
         xbmc.executebuiltin("XBMC.Notification(LiveStreams,New source added.,5000,"+icon+")")
+        if 'xbmcplus.xb.funpic.de' in url:
+            xbmc.executebuiltin("XBMC.Container.Update(%s?mode=14,replace)" %sys.argv[0])
+        else: addon.openSettings()
 
 
 def rmSource(name):
@@ -110,8 +114,35 @@ def rmSource(name):
                 b = open(source_file,"w")
                 b.write(json.dumps(sources))
                 b.close()
-                return
+                break
 
+                
+def get_xml_database(url, browse=False):
+        if url is None:
+            url = 'http://xbmcplus.xb.funpic.de/up/data/files/'
+        soup = BeautifulSoup(makeRequest(url), convertEntities=BeautifulSoup.HTML_ENTITIES)
+        for i in soup('a'):
+            href = i['href']
+            if not href.startswith('?'):
+                name = i.string
+                if name not in ['Parent Directory', 'recycle_bin/']:
+                    if href.endswith('/'):
+                        if browse:
+                            addDir(name,url+href,15,icon,fanart,'','','',False)
+                        else:
+                            addDir(name,url+href,14,icon,fanart,'','','',False)
+                    elif href.endswith('.xml'):
+                        if browse:
+                            addDir(name,url+href,1,icon,fanart,'','','',False)
+                        else:
+                            if os.path.exists(source_file)==True:
+                                if name in SOURCES:
+                                    addDir(name+' (in use)',url+href,11,icon,fanart,'','','',False)
+                                else:
+                                    addDir(name,url+href,11,icon,fanart,'','','',False)
+                            else:
+                                addDir(name,url+href,11,icon,fanart,'','','',False)
+                
 
 def getCommunitySources():
         url = 'http://community-links.googlecode.com/svn/trunk/'
@@ -126,7 +157,10 @@ def getCommunitySources():
 def checkForUpdate():
         url = 'http://community-links.googlecode.com/svn/trunk/'
         data = makeRequest(url)
-        revision = re.compile('<html><head><title>(.+?)/trunk</title></head>').findall(data)[0]
+        try:
+            revision = re.compile('<html><head><title>(.+?)/trunk</title></head>').findall(data)[0]
+        except TypeError:
+            return
         if xbmcvfs.exists(REV):
             R = open(REV,"r")
             rev = R.read()
@@ -340,6 +374,8 @@ def getItems(items,fanart):
         for item in items:
             try:
                 name = item('title')[0].string
+                if name is None:
+                    name = 'unknown?'
             except:
                 print '-----Name Error----'
                 name = ''
@@ -475,7 +511,7 @@ def rmFavorite(name):
                 b = open(favorites, "w")
                 b.write(json.dumps(data))
                 b.close()
-                return
+                break
 
 
 def play_playlist(name, list):
@@ -674,5 +710,13 @@ elif mode==12:
 elif mode==13:
     print "play_playlist"
     play_playlist(name, playlist)
+
+elif mode==14:
+    print "get_xml_database"
+    get_xml_database(url)
+
+elif mode==15:
+    print "browse_xml_database"
+    get_xml_database(url, True)
 
 xbmcplugin.endOfDirectory(int(sys.argv[1]))
