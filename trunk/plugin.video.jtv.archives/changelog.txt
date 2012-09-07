@@ -1,3 +1,6 @@
+Version 0.3.4
+fix archived videos page-nation
+
 Version 0.3.3
 added "Blacklist Channel" to the context menu
 added "Bad Password" notification
