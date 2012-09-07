@@ -357,7 +357,7 @@ def getVideos(name, url=None, page=None):
                 page = 1
             else:
                 page += 1
-            url = url.split('?')[0]+'?offset='+str(page)
+            url = url.split('?')[0]+'?offset='+str(page*20)
             addDir('Next Page', url, 7, xbmc.translatePath( os.path.join( home, 'resources', 'icons','next.png' ) ), '', '', str(page))
 
 
