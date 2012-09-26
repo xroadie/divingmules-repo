@@ -1,3 +1,11 @@
+Version 0.0.7
+added option to show scores in game lists
+added a kind-of calender function for getting game dates, thanks to J_K_M_A_N for the inspiration!
+
+Version 0.0.6
+added support for Openelec, more details at - http://forum.xbmc.org/showthread.php?tid=104391&pid=1113912#pid1113912
+enhanced support for starting mlb.tv games from a specific inning
+
 Version 0.0.3
 fix an issue where pausing would kill mlbhls
 added ability to start games from the begining, and top of innings
