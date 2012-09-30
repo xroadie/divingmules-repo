@@ -1,3 +1,6 @@
+Version 0.0.8
+fix bug in mlb.tv listing
+
 Version 0.0.7
 added option to show scores in game lists
 added a kind-of calender function for getting game dates, thanks to J_K_M_A_N for the inspiration!
