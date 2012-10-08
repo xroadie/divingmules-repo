@@ -2,7 +2,7 @@
 <addons>
 <addon id="plugin.audio.noagenda"
        name="No Agenda"
-       version="0.0.1"
+       version="0.0.2"
        provider-name="divingmule">
   <requires>
     <import addon="xbmc.python" version="2.0"/>
