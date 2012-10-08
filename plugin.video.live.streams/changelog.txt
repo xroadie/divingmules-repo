@@ -1,2 +1,6 @@
+Version 1.0.7
+added add-on setting "Add items with multiple links as play lists"
+    if enabled only one list item will be shown and the item will be played as a play list
+
 Version 1.0.6
 added support for the .xml Database
