@@ -22,5 +22,6 @@
   </category>
   <category label="General">
     <setting id="use_thumb" type="bool" label="Use Thumbnails as Fanart" default="false" />
+    <setting id="add_playlist" type="bool" label="Add items with multiple links as play lists" default="false"/>
   </category>
 </settings>

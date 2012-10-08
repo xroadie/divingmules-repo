@@ -101,8 +101,9 @@ def addSource(url=None):
         addon.setSetting('new_url_source', "")
         addon.setSetting('new_file_source', "")
         xbmc.executebuiltin("XBMC.Notification(LiveStreams,New source added.,5000,"+icon+")")
-        if 'xbmcplus.xb.funpic.de' in url:
-            xbmc.executebuiltin("XBMC.Container.Update(%s?mode=14,replace)" %sys.argv[0])
+        if not url is None:
+            if 'xbmcplus.xb.funpic.de' in url:
+                xbmc.executebuiltin("XBMC.Container.Update(%s?mode=14,replace)" %sys.argv[0])
         else: addon.openSettings()
 
 
@@ -440,9 +441,12 @@ def getItems(items,fanart):
                     playlist = []
                     for i in url:
                         playlist.append(i)
-                    for i in url:
-                        alt += 1
-                        addLink(i,'%s) %s' %(str(alt), name.encode('utf-8', 'ignore')),thumbnail,fanArt,desc,genre,date,True,playlist)
+                    if addon.getSetting('add_playlist') == "false":
+                        for i in url:
+                            alt += 1
+                            addLink(i,'%s) %s' %(str(alt), name.encode('utf-8', 'ignore')),thumbnail,fanArt,desc,genre,date,True,playlist)
+                    else:
+                        addLink('', name.encode('utf-8', 'ignore'),thumbnail,fanArt,desc,genre,date,True,playlist)                    
                 else:
                     addLink(url[0],name.encode('utf-8', 'ignore'),thumbnail,fanArt,desc,genre,date,True)
             except:
@@ -543,7 +547,14 @@ def addDir(name,url,mode,iconimage,fanart,description,genre,date,showcontext=Tru
 
 
 def addLink(url,name,iconimage,fanart,description,genre,date,showcontext=True,playlist=None):
-        u=sys.argv[0]+"?url="+urllib.quote_plus(url)+"&mode=12"
+        u=sys.argv[0]+"?"
+        if not playlist is None:
+            if addon.getSetting('add_playlist') == "false":
+                u += "url="+urllib.quote_plus(url)+"&mode=12"
+            else:
+                u += "mode=13&name=%s&playlist=%s" %(urllib.quote_plus(name), urllib.quote_plus(str(playlist).replace(',','|')))
+        else:
+            u += "url="+urllib.quote_plus(url)+"&mode=12"
         ok=True
         liz=xbmcgui.ListItem(name, iconImage="DefaultVideo.png", thumbnailImage=iconimage)
         liz.setInfo( type="Video", infoLabels={ "Title": name, "Plot": description, "Genre": genre, "Date": date } )
@@ -559,9 +570,10 @@ def addLink(url,name,iconimage,fanart,description,genre,date,showcontext=True,pl
                 contextMenu = [('Add to LiveStreams Favorites','XBMC.Container.Update(%s?mode=5&name=%s&url=%s&iconimage=%s&fanart=%s)' %(sys.argv[0], urllib.quote_plus(name), urllib.quote_plus(url), urllib.quote_plus(iconimage), urllib.quote_plus(fanart)))]
             liz.addContextMenuItems(contextMenu)
         if not playlist is None:
-            playlist_name = name.split(') ')[1]
-            contextMenu_ = [('Play '+playlist_name+' PlayList','XBMC.RunPlugin(%s?mode=13&name=%s&playlist=%s)' %(sys.argv[0], urllib.quote_plus(playlist_name), urllib.quote_plus(str(playlist).replace(',','|'))))]
-            liz.addContextMenuItems(contextMenu_)
+            if addon.getSetting('add_playlist') == "false":
+                playlist_name = name.split(') ')[1]
+                contextMenu_ = [('Play '+playlist_name+' PlayList','XBMC.RunPlugin(%s?mode=13&name=%s&playlist=%s)' %(sys.argv[0], urllib.quote_plus(playlist_name), urllib.quote_plus(str(playlist).replace(',','|'))))]
+                liz.addContextMenuItems(contextMenu_)
         ok=xbmcplugin.addDirectoryItem(handle=int(sys.argv[1]),url=u,listitem=liz)
         return ok
 
