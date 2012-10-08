@@ -31,11 +31,26 @@ def main():
         soup = BeautifulStoneSoup(makeRequest('http://www.mevio.com/feeds/noagenda.xml'),
                                   convertEntities=BeautifulStoneSoup.XML_ENTITIES)
         for i in soup('item'):
-            mp3_url = i.guid.string
+            try:
+                mp3_url = i.enclosure['url']
+            except:
+                mp3_url = i.guid.string
             desc = i.description.contents[0]
             d_soup = BeautifulSoup(desc, convertEntities=BeautifulSoup.HTML_ENTITIES)
-            name = d_soup.p.contents[0]+': '+d_soup.p.contents[2]
-            thumb = d_soup.img['src']
+            try:
+                name = d_soup.h3.string+': '+d_soup.b.string
+            except:
+                try:
+                    name = d_soup.p.contents[0]+': '+d_soup.p.contents[2]
+                except:
+                    name = i.title.string+': '+i('itunes:summary')[0].contents[0].split('\n')[0].strip()
+            try:
+                thumb = d_soup.find('img', attrs={'class' : 'storyImage'})['src']
+            except:
+                try:
+                    thumb = d_soup.img['src']
+                except:
+                    thumb = icon
             liz=xbmcgui.ListItem(name, iconImage=thumb, thumbnailImage=thumb)
             liz.setInfo( type="Audio", infoLabels={ "Title": name } )
             liz.setProperty('mimetype', 'audio')
