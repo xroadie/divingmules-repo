@@ -1,3 +1,8 @@
+Version 0.3.5
+fix error when selecting "All" catagory
+added view mode setting for "Media Info 3"
+added setting to only show live "Justin.tv User Favorites / Follows"
+
 Version 0.3.4
 fix archived videos page-nation
 
