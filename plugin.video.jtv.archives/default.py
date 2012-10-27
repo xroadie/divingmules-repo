@@ -19,6 +19,7 @@ except:
     import storageserverdummy as StorageServer
 
 addon = xbmcaddon.Addon('plugin.video.jtv.archives')
+addon_version = addon.getAddonInfo('version')
 profile = xbmc.translatePath(addon.getAddonInfo('profile'))
 settings = xbmcaddon.Addon(id='plugin.video.jtv.archives')
 home = settings.getAddonInfo('path')
@@ -103,6 +104,12 @@ LANGUAGES = {
     }
 
 
+def addon_log(string):
+        if debug == 'true':
+            xbmc.log("[addon.Jtv-%s]: %s" %(addon_version, string))
+        else: pass
+
+
 def get_request(url, headers=None):
         try:
             if headers is None:
@@ -115,20 +122,17 @@ def get_request(url, headers=None):
             return link
         except urllib2.URLError, e:
             errorStr = str(e.read())
-            if debug == 'true':
-                print 'We failed to open "%s".' % url
+            addon_log('We failed to open "%s".' % url)
             if hasattr(e, 'reason'):
-                if debug == 'true':
-                    print 'We failed to reach a server.'
-                    print 'Reason: ', e.reason
+                addon_log('We failed to reach a server.')
+                addon_log('Reason: ', e.reason)
             if hasattr(e, 'code'):
                 if 'archive' in url:
                     if str(e.code) == '403':
                             xbmc.executebuiltin("XBMC.Notification(Jtv,No archives found for "+name+",5000,"+ICON+")")
                 else:
                     xbmc.executebuiltin("XBMC.Notification(Jtv,HTTP ERROR: "+str(e.code)+",5000,"+ICON+")")
-                if debug == 'true':
-                    print 'We failed with error code - %s.' % e.code
+                addon_log('We failed with error code - %s.' % e.code)
 
 
 def getLanguageCode(language):
@@ -183,142 +187,115 @@ def getLiveData(subCat,catId,page):
                 url += ','+getLanguageCode(settings.getSetting('lang1'))
         if not page is None or page == '':
             url += '&limit=20&offset='+str((page -1) * 20)
-        if debug == 'true':
-            print '----LiveData: '+url
+        addon_log('LiveData: '+url)
         Index(get_request(url), subCat, catId, page)
 
 
 def getUserFavorites(user):
         url = 'http://api.justin.tv/api/user/favorites/'+user+'.json?limit=100'
+        if settings.getSetting('live_only') == "true":
+            url += '&live=true'
         Index(get_request(url), '', '', None)
 
 
 def Index(data, subCat, catId, page):
-        print(data, subCat, catId, page)
-        if debug == 'true':
-            print '--- json data ---'
-            print data
+        addon_log('json data')
+        addon_log(data)
         data = json.loads(data)
-        if debug == 'true':
-            print '----- Len Data = '+str(len(data))+' -----'
-            print '----- page = '+str(page)+' -----'
+        addon_log('Len Data = '+str(len(data)))
+        addon_log('page = '+str(page))
 
         if len(data) == 20:
             if not page is None:
                 addPage = page + 1
-            else:
-                addPage = 1
-        else:
-            addPage = None
+            else: addPage = 1
+        else: addPage = None
 
         for i in data:
             try:
                 name = i['channel']['login']
-                if name is None or name == '':
-                    raise
+                if name is None or name == '': raise
             except:
                 try:
                     name =  i['name'].split('user_')[-1]
-                    if name is None or name == '':
-                        raise
+                    if name is None or name == '': raise
                 except:
                     name = str(i['image_url_medium']).split('/')[-1].split('-')[0]
             if name in BLACKLIST:
-                if debug == 'true':
-                    print '----- Channel: %s - Blacklisted -----' %name
+                addon_log('Channel: %s - Blacklisted' %name)
                 continue
             try:
                 subcat = i['channel']['subcategory_title']
-                if subcat is None or subcat == '':
-                    raise
+                if subcat is None or subcat == '': raise
             except:
                 try:
                     subcat = i['subcategory']
-                    if subcat is None:
-                        raise
-                except:
-                    subcat = ''
+                    if subcat is None: raise
+                except: subcat = ''
             try:
                 title = i['channel']['status']
-                if title is None or title == '':
-                    raise
+                if title is None or title == '': raise
             except:
                 try:
                     title = i['channel']['title']
-                    if title is None or title == '':
-                        raise
+                    if title is None or title == '': raise
                 except:
                     try:
                         title = i['title']
-                        if title is None or title == '':
-                            raise
-                    except:
-                        title = name
-            try:
-                timezone = i['channel']['timezone']
+                        if title is None or title == '': raise
+                    except: title = name
+            try: timezone = i['channel']['timezone']
+            except: timezone = ''
+            try: bitrate = str(i['video_bitrate']).split('.')[0]
+            except: bitrate = ''
+            try: views = i['channel']['views_count']
             except:
-                timezone = ''
-            try:
-                bitrate = str(i['video_bitrate']).split('.')[0]
-            except:
-                bitrate = ''
-            try:
-                views = i['channel']['views_count']
-            except:
-                try:
-                    views = i['channel_view_count']
-                except:
-                    views = ''
-            try:
-                lang = LANGUAGES[i['language']]
-            except:
-                lang = ''
+                try: views = i['channel_view_count']
+                except: views = ''
+            try: lang = LANGUAGES[i['language']]
+            except: lang = ''
 
             if settings.getSetting('fanart') == "true":
                 try:
                     fanart = i['channel']['image_url_huge']
                 except:
-                    try:
-                        fanart = i['image_url_huge']
-                    except:
-                        fanart = os.path.join( home, 'fanart.jpg' )
+                    try: fanart = i['image_url_huge']
+                    except: fanart = os.path.join( home, 'fanart.jpg' )
                 if settings.getSetting('use_channel_icon') == "0":
                     thumb = fanart
                 else:
-                    try:
-                        thumb = i['channel']['screen_cap_url_medium']
+                    try: thumb = i['channel']['screen_cap_url_medium']
                     except:
-                        try:
-                            thumb = i['screen_cap_url_medium']
-                        except:
-                            thumb = ''
+                        try: thumb = i['screen_cap_url_medium']
+                        except: thumb = ''
             else:
                 fanart = os.path.join( home, 'fanart.jpg' )
                 if settings.getSetting('use_channel_icon') == "0":
-                    try:
-                        thumb = i['channel']['image_url_medium']
+                    try: thumb = i['channel']['image_url_medium']
                     except:
-                        try:
-                            thumb = i['image_url_medium']
-                        except:
-                            thumb = ''
+                        try: thumb = i['image_url_medium']
+                        except: thumb = ''
                 else:
-                    try:
-                        thumb = i['channel']['screen_cap_url_medium']
+                    try: thumb = i['channel']['screen_cap_url_medium']
                     except:
-                        try:
-                            thumb = i['screen_cap_url_medium']
-                        except:
-                            thumb = ''
-
-            try:
-                description = i['channel']['title'].encode('ascii', 'ignore')
+                        try: thumb = i['screen_cap_url_medium']
+                        except: thumb = ''
+            try: description = i['channel']['title'].encode('ascii', 'ignore')
             except:
-                try:
-                    description = i['title'].encode('ascii', 'ignore')
-                except:
-                    description = ''
-            description += '\n Channel Name: '+name.encode('ascii', 'ignore')+'\n Timezone: '+timezone+'\n Subcategory: '+subcat+'\n Bitrate: '+bitrate+'\n Language: '+lang+'\n Views: '+views
+                try: description = i['title'].encode('ascii', 'ignore')
+                except: description = ''
+            try: description += '\n Channel Name: '+name.encode('ascii', 'ignore')
+            except: pass
+            try: description += '\n Timezone: '+timezone
+            except: pass
+            try: description += '\n Subcategory: '+subcat
+            except: pass
+            try: description += '\n Bitrate: '+bitrate
+            except: pass
+            try: description += '\n Language: '+lang
+            except: pass
+            try: description += '\n Views: '+views
+            except: pass
             addLiveLink(name,title,'',2,thumb,fanart,description)
         if not addPage is None:
             if addPage > page:
@@ -333,13 +310,13 @@ def getVideos(name, url=None, page=None):
         try:
             data = json.loads(get_request(url,headers))
         except TypeError:
-            print '--- exception: data ---'
+            addon_log('--- exception: data ---')
             return
         for i in data:
             try:
                 title = i['title']
             except KeyError:
-                print '--- KeyError ---'
+                addon_log('--- KeyError ---')
                 title = ''
             video_url = i['video_file_url']
             part = 'Part: '+i['broadcast_part']
@@ -370,8 +347,7 @@ def playLive(name, play=False, password=None):
             url += '&private_code='+password
         data = json.loads(get_request(url,headers))
         if data == []:
-            if debug == 'true':
-                print '---- No Data, Live? ----'
+            addon_log('No Data, Live?')
             xbmc.executebuiltin("XBMC.Notification(Jtv,Live Data Not Found,5000,"+ICON+")")
             return
         stream = getQuality(data)
@@ -386,8 +362,7 @@ def playLive(name, play=False, password=None):
                 return
         if stream.startswith('rtmp_key_error'):
             return
-        if debug == 'true':
-            print '--- Stream: %s ---' %stream
+        addon_log('Stream: %s' %stream)
         swf = ' swfUrl=%s swfVfy=1 live=1' % swf_url
         Pageurl = ' Pageurl=http://www.justin.tv/'+name
         url = stream+swf+Pageurl
@@ -428,7 +403,7 @@ def getQuality(data, password=False):
                 token = ' jtv='+i['token'].replace('\\','\\5c').replace(' ','\\20').replace('"','\\22')
             except KeyError:
                 try:
-                    print '--- Needed Info: %s ---' %i['needed_info']
+                    addon_log('--- Needed Info: %s ---' %i['needed_info'])
                 except KeyError:
                     pass
                 if not password:
@@ -440,7 +415,7 @@ def getQuality(data, password=False):
                             xbmc.executebuiltin("XBMC.Notification(Jtv,Bad Password,5000,"+ICON+")")
                             return 'Bad Password'
                         else:
-                            print '--- Error: %s ---' %i['error']
+                            addon_log('--- Error: %s ---' %i['error'])
                             pass
                     except KeyError:
                         pass
@@ -448,26 +423,26 @@ def getQuality(data, password=False):
                 rtmp = i['connect']+'/'+i['play']
             except KeyError:
                 rtmp = 'rtmp_key_error'
-                print'--- rtmp exception ---'
+                addon_log('--- rtmp exception ---')
             if token is not None:
                 if q_type == i['type']:
-                    print '---- Stream Type: %s ----' %i['type']
+                    addon_log('---- Stream Type: %s ----' %i['type'])
                     return(rtmp+token)
                 else:
                     streams.append((i['type'], rtmp, token))
             else: continue
         if len(streams) < 1:
-            print '----- Token Error ------'
+            addon_log('----- Token Error ------')
             return
         elif len(streams) == 1:
-            print '---- Stream Type: %s ----' %streams[0][0]
+            addon_log('---- Stream Type: %s ----' %streams[0][0])
             return(streams[0][1]+streams[0][2])
         else:
             for i in range(len(s_type)):
                 quality = s_type[str(i)]
                 for q in streams:
                     if q[0] == quality:
-                        print '---- Stream Type: %s ----' %q[0]
+                        addon_log('---- Stream Type: %s ----' %q[0])
                         return(q[1]+q[2])
                     else: continue
 
@@ -654,7 +629,9 @@ def get_params():
 
 
 def addDir(name,url,mode,iconimage,catId,subCat,page,showcontext=False):
-        u=sys.argv[0]+"?url="+urllib.quote_plus(url)+"&mode="+str(mode)+"&page="+str(page)+"&name="+urllib.quote_plus(name)+"&catId="+urllib.quote_plus(catId)+"&subCat="+urllib.quote_plus(subCat)+"&iconimage="+urllib.quote_plus(iconimage)
+        u=(sys.argv[0]+"?url="+urllib.quote_plus(url)+"&mode="+str(mode)+"&page="+str(page)+
+           "&name="+urllib.quote_plus(name)+"&catId="+urllib.quote_plus(catId)+"&subCat="+urllib.quote_plus(subCat)+
+           "&iconimage="+urllib.quote_plus(iconimage))
         ok=True
         liz=xbmcgui.ListItem(name, iconImage="DefaultFolder.png", thumbnailImage=iconimage)
         liz.setInfo( type="Video", infoLabels={ "Title": name } )
@@ -765,17 +742,15 @@ try:
 except:
     pass
 
-print "Mode: "+str(mode)
-print "URL: "+str(url)
-print "Name: "+str(name)
-print "catId: "+str(catId)
+addon_log("Mode: "+str(mode))
+addon_log("URL: "+str(url))
+addon_log("Name: "+str(name))
+addon_log("catId: "+str(catId))
 
 if mode==None:
-    print ""
     Categories()
 
 elif mode==1:
-    print ""
     getLiveData(subCat,catId,page)
     if not settings.getSetting('view_mode') == "0":
         try:
@@ -794,62 +769,52 @@ elif mode==1:
                 xbmc.executebuiltin('Container.SetViewMode(504)')
             if settings.getSetting('view_mode') == "7": # Media info 2
                 xbmc.executebuiltin('Container.SetViewMode(503)')
+            if settings.getSetting('view_mode') == "8": # Media info 3
+                xbmc.executebuiltin('Container.SetViewMode(515)')
         except:
-            print "SetViewMode Failed: "+settings.getSetting('view_mode')
-            print "Skin: "+xbmc.getSkinDir()
+            addon_log("SetViewMode Failed: "+settings.getSetting('view_mode'))
+            addon_log("Skin: "+xbmc.getSkinDir())
 
 elif mode==2:
-    print ""
     if play == 'True':
         playLive(name, True, quality=quality)
     else:
         playLive(name)
 
 elif mode==3:
-    print ""
     get_search()
 
 elif mode==4:
-    print ""
     enterChannel()
 
 elif mode==5:
-    print ""
     getFavorites()
 
 elif mode==6:
-    print ""
     getSubcategories(catId, iconimage)
 
 elif mode==7:
-    print ""
     getVideos(name, url, page)
 
 elif mode==8:
-    print ""
     addFavorite(name,iconimage,title)
 
 elif mode==9:
-    print ""
     rmFavorite(name)
 
 elif mode==10:
-    print ""
+    pass
 
 elif mode==11:
-    print ""
     getUserFavorites(user)
 
 elif mode==12:
-    print ""
     Search(name)
 
 elif mode==13:
-    print ""
     remove_search(name)
 
 elif mode==14:
-    print ""
     addToBlacklist(name)
 
 xbmcplugin.endOfDirectory(int(sys.argv[1]))
