@@ -217,116 +217,90 @@ def getVideoUrl(url):
             xbmc.executebuiltin("XBMC.Notification(NFL,Sorry this video is expired.,5000,"+icon+")")
             return
         if len(data['cdnData']['bitrateInfo']) > 0:
-            if bitrate == "3200k":
-                try:
-                    url = data['cdnData']['bitrateInfo'][4]['path']
-                except:
-                    try:
-                        url = data['cdnData']['bitrateInfo'][3]['path']
-                    except:
-                        try:
-                            url = data['cdnData']['bitrateInfo'][2]['path']
-                        except:
-                            try:
-                                url = data['cdnData']['bitrateInfo'][1]['path']
-                            except:
-                                url = data['cdnData']['bitrateInfo'][0]['path']
-            elif bitrate == "2000k":
-                try:
-                    url = data['cdnData']['bitrateInfo'][3]['path']
-                except:
-                    try:
-                        url = data['cdnData']['bitrateInfo'][2]['path']
-                    except:
-                        try:
-                            url = data['cdnData']['bitrateInfo'][1]['path']
-                        except:
-                            url = data['cdnData']['bitrateInfo'][0]['path']
-            elif bitrate == "1200k":
-                try:
-                    url = data['cdnData']['bitrateInfo'][2]['path']
-                except:
-                    try:
-                        url = data['cdnData']['bitrateInfo'][1]['path']
-                    except:
-                        url = data['cdnData']['bitrateInfo'][0]['path']
-            elif bitrate == "700k":
-                try:
-                    url = data['cdnData']['bitrateInfo'][1]['path']
-                except:
-                    url = data['cdnData']['bitrateInfo'][0]['path']
-            else:
-                url = data['cdnData']['bitrateInfo'][0]['path']
+            for i in data['cdnData']['bitrateInfo']:
+                if bitrate in i['path']:
+                    uri = i['path']
+                    break
+                else: uri = None
+            if uri is None:
+                uri = data['cdnData']['bitrateInfo'][-1]['path']
         else:
             print '--- No bitrateInfo ---'
             class HeadRequest(urllib2.Request):
                     def get_method(self):
                         return "HEAD"
-            print data
-            cdn_ = 'http://a.video.nfl.com/'
+            # print data
+            cdn_ = 'http://l.video.nfl.com/'
             uri = data['cdnData']['uri']
-            url = None
             if bitrate == "3200k":
-                url = uri.replace(uri.split('_', -1)[-1], '3200k.mp4')
+                uri = uri.replace(uri.split('_', -1)[-1], '3200k.mp4')
                 try:
-                    response = urllib2.urlopen(HeadRequest(cdn_+url))
+                    response = urllib2.urlopen(HeadRequest(cdn_+uri))
                     print response.info()
                 except:
                     bitrate = "2000k"
-                    url = None
+                    uri = None
                     print '-- trying lower bitrate --'
             if bitrate == "2000k":
-                url = uri.replace(uri.split('_', -1)[-1], '2000k.mp4')
+                uri = uri.replace(uri.split('_', -1)[-1], '2000k.mp4')
                 try:
-                    response = urllib2.urlopen(HeadRequest(cdn_+url))
+                    response = urllib2.urlopen(HeadRequest(cdn_+uri))
                     print response.info()
                 except:
                     bitrate = "1200k"
-                    url = None
+                    uri = None
                     print '-- trying lower bitrate --'
             if bitrate == "1200k":
-                url = uri.replace(uri.split('_', -1)[-1], '1200k.mp4')
+                uri = uri.replace(uri.split('_', -1)[-1], '1200k.mp4')
                 try:
-                    response = urllib2.urlopen(HeadRequest(cdn_+url))
+                    response = urllib2.urlopen(HeadRequest(cdn_+uri))
                     print response.info()
                 except:
                     bitrate = "700k"
-                    url = None
+                    uri = None
                     print '-- trying lower bitrate --'
             # elif bitrate == "700k":
-                # url = uri.replace(uri.split('_', -1)[-1], '700k.mp4')
-            if url is None:
-                url = uri
-        if url.startswith('/'):
-            url = url[1:]
+                # uri = uri.replace(uri.split('_', -1)[-1], '700k.mp4')
+            if uri is None:
+                uri = data['cdnData']['uri']
+        if uri.startswith('/'):
+            uri = uri[1:]
 
         cdn0 = 'http://l.video.nfl.com/'           #limelightProg 700k only
         cdn1 ='http://vod.hstream.video.nfl.com/'  #akamaiHTTP  streams seem to end early
         cdn2 = 'http://a.video.nfl.com/'           #akamaiProg
-        cdn3 = 'rtmp://cp86372.edgefcs.net/ondemand swfUrl=http://flash.static.nfl.com/static/site/4.3/flash/video/video-detail-player.swf'   #pathprefix="vod/gallery/" akamaiRTMP
-        cdn4 = 'rtmp://nfl.fcod.llnwd.net/a2290 app=a2290 swfUrl=http://flash.static.nfl.com/static/site/4.3/flash/video/video-detail-player.swf'  # seems to only work at 700k   #pathprefix="vod/"  limelightRTMP
+        cdn3 = 'rtmp://cp86372.edgefcs.net/ondemand'    #pathprefix="vod/gallery/" akamaiRTMP
+        cdn4 = 'rtmp://nfl.fcod.llnwd.net/a2290 app=a2290'  # seems to only work at 700k   #pathprefix="vod/"  limelightRTMP
         liveCDN = 'rtmp://cp37426.live.edgefcs.net/live'
-
+        
+        swf_url = ' swfUrl=http://i.nflcdn.com/static/video/latest/js/nfl-video-swf/assets/player.swf?v=2f6649c'
         if  __settings__.getSetting('cdn') == "limelight-RTMP 700k only":
-            if not re.search('.mp4', url):
+            if not re.search('.mp4', uri):
                 playpath = ' Playpath=vod/'
             else:
                 playpath = ' Playpath=mp4:vod/'
-            cdn = cdn4+playpath
+            url = cdn4+playpath+uri+swf_url
+        # cdn3 "RTMP_ReadPacket, failed to read RTMP packet header"
         elif  __settings__.getSetting('cdn') == "akamai-RTMP":
-            if not re.search('.mp4', url):
+            if not re.search('.mp4', uri):
                 playpath = ' Playpath=vod/'
             else:
                 playpath = ' Playpath=mp4:vod/'
-            cdn = cdn3+playpath
+                swf_url +=' swfVfy=1'
+            url = cdn3+playpath+uri+swf_url
         elif  __settings__.getSetting('cdn') == "limelightProg-HTTP 700k only":
-            cdn = cdn0
+            url = cdn0+uri
         elif  __settings__.getSetting('cdn') == "akamai-HTTP":
-            cdn = cdn1
+            values = {'700k': '1',
+                      '1200k': '2',
+                      '2000k': '3',
+                      '3200k': '4'}
+            url = '%s%s_,50,70,120,200,320,0k.mp4.csmil/bitrate=%s?v=2.7.6&seek=0' %(cdn1, uri.rsplit('_', 1)[0], values[bitrate])
+        # ERROR: CCurlFile::CReadState::Open, didn't get any data from stream
         elif  __settings__.getSetting('cdn') == "akamaiProg-HTTP":
-            cdn = cdn2
-        print "Resolved URL -----> "+cdn+url
-        return cdn+url
+            url = cdn2+uri
+        print "Resolved URL -----> "+url
+        return url
 
 
 def setUrl(url):
