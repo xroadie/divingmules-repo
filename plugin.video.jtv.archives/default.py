@@ -695,8 +695,8 @@ xbmcplugin.setContent(int(sys.argv[1]), 'movies')
 url=None
 name=None
 mode=None
-catId=None
-subCat=None
+catId=''
+subCat=''
 page=None
 play=None
 quality=None

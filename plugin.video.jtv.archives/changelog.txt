@@ -1,3 +1,6 @@
+Version 0.3.6
+fix error when selecting "All" catagory with XBMC-Frodo
+
 Version 0.3.5
 fix error when selecting "All" catagory
 added view mode setting for "Media Info 3"
