@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+ï»¿# -*- coding: utf-8 -*-
 
 import urllib
 import urllib2
@@ -14,20 +14,31 @@ try:
     import json
 except:
     import simplejson as json
+import SimpleDownloader as downloader
 
 addon = xbmcaddon.Addon('plugin.video.live.streams')
-profile = addon.getAddonInfo('profile').decode('utf-8')
-home = addon.getAddonInfo('path').decode('utf-8')
-favorites = xbmc.translatePath(os.path.join(profile, 'favorites' )).decode('utf-8')
-REV = xbmc.translatePath(os.path.join(profile, 'list_revision')).decode('utf-8')
-icon = xbmc.translatePath(os.path.join(home, 'icon.png'))
-fanart = xbmc.translatePath(os.path.join(home, 'fanart.jpg'))
-source_file = xbmc.translatePath(os.path.join(profile, 'source_file')).decode('utf-8')
-update_time = xbmc.translatePath(os.path.join(profile, 'update_time')).decode('utf-8')
+addon_version = addon.getAddonInfo('version')
+profile = xbmc.translatePath(addon.getAddonInfo('profile').decode('utf-8'))
+home = xbmc.translatePath(addon.getAddonInfo('path').decode('utf-8'))
+favorites = os.path.join(profile, 'favorites')
+REV = os.path.join(profile, 'list_revision')
+icon = os.path.join(home, 'icon.png')
+FANART = os.path.join(home, 'fanart.jpg')
+source_file = os.path.join(profile, 'source_file')
+downloader = downloader.SimpleDownloader()
+debug = addon.getSetting('debug')
 if os.path.exists(favorites)==True:
     FAV = open(favorites).read()
+else: FAV = []
 if os.path.exists(source_file)==True:
     SOURCES = open(source_file).read()
+else: SOURCES = []
+
+
+def addon_log(string):
+    if debug == 'true':
+        xbmc.log("[addon.live.streams-%s]: %s" %(addon_version, string))
+
 
 def makeRequest(url):
         try:
@@ -37,64 +48,121 @@ def makeRequest(url):
             response.close()
             return data
         except urllib2.URLError, e:
-            print 'URL: '+url
+            addon_log('URL: '+url)
             if hasattr(e, 'code'):
-                print 'We failed with error code - %s.' % e.code
+                addon_log('We failed with error code - %s.' % e.code)
                 xbmc.executebuiltin("XBMC.Notification(LiveStreams,We failed with error code - "+str(e.code)+",10000,"+icon+")")
             elif hasattr(e, 'reason'):
-                print 'We failed to reach a server.'
-                print 'Reason: ', e.reason
+                addon_log('We failed to reach a server.')
+                addon_log('Reason: %s' %e.reason)
                 xbmc.executebuiltin("XBMC.Notification(LiveStreams,We failed to reach a server. - "+str(e.reason)+",10000,"+icon+")")
 
 
 def getSources():
+        if os.path.exists(favorites) == True:
+            addDir('Favorites','url',4,os.path.join(home, 'resources', 'favorite.png'),FANART,'','','','')
         if addon.getSetting("browse_xml_database") == "true":
-            addDir('XML Database','http://xbmcplus.xb.funpic.de/up/data/files/',15,icon,fanart,'','','')
-        if os.path.exists(favorites)==True:
-            addDir('Favorites','url',4,xbmc.translatePath(os.path.join(home, 'resources', 'favorite.png')),fanart,'','','',False)
+            addDir('XML Database','http://xbmcplus.xb.funpic.de/up/data/files/',15,icon,FANART,'','','','')
+        if addon.getSetting("browse_community") == "true":
+            addDir('Community Files','community_files',16,icon,FANART,'','','','')
         if os.path.exists(source_file)==True:
             sources = json.loads(open(source_file,"r").read())
             if len(sources) > 1:
                 for i in sources:
-                    addDir(i[0],i[1].encode('utf-8'),1,icon,fanart,'','','')
+                    ## for pre 1.0.8 sources
+                    if isinstance(i, list):
+                        addDir(i[0].encode('utf-8'),i[1].encode('utf-8'),1,icon,FANART,'','','','','source')
+                    else:
+                        thumb = icon
+                        fanart = FANART
+                        desc = ''
+                        date = ''
+                        credits = ''
+                        genre = ''
+                        if i.has_key('thumbnail'):
+                            thumb = i['thumbnail']
+                        if i.has_key('fanart'):
+                            fanart = i['fanart']
+                        if i.has_key('description'):
+                            desc = i['description']
+                        if i.has_key('date'):
+                            date = i['date']
+                        if i.has_key('genre'):
+                            genre = i['genre']
+                        if i.has_key('credits'):
+                            credits = i['credits']
+                        addDir(i['title'].encode('utf-8'),i['url'].encode('utf-8'),1,thumb,fanart,desc,genre,date,credits,'source')
+
             else:
-                getData(sources[0][1],fanart)
+                if isinstance(sources[0], list):
+                    getData(sources[0][1].encode('utf-8'),FANART)
+                else:
+                    getData(sources[0]['url'], sources[0]['fanart'])
 
 
 def addSource(url=None):
         if url is None:
             if not addon.getSetting("new_file_source") == "":
-               source = addon.getSetting('new_file_source').decode('utf-8')
-            if not addon.getSetting("new_url_source") == "":
-               source = addon.getSetting('new_url_source')
+               source_url = addon.getSetting('new_file_source').decode('utf-8')
+            elif not addon.getSetting("new_url_source") == "":
+               source_url = addon.getSetting('new_url_source').decode('utf-8')
         else:
-            source = url
-        print 'NEW SOURCE: '+source.encode('utf-8')
-        if source == '' or source is None:
+            source_url = url
+        if source_url == '' or source_url is None:
             return
-        if '/' in source:
-            nameStr = source.split('/')[-1].split('.')[0]
-        if '\\' in source:
-            nameStr = source.split('\\')[-1].split('.')[0]
-        if '%' in nameStr:
-            nameStr = urllib.unquote_plus(nameStr)
-        keyboard = xbmc.Keyboard(nameStr,'Displayed Name, Rename?')
-        keyboard.doModal()
-        if (keyboard.isConfirmed() == False):
-            return
-        newStr = keyboard.getText()
-        if len(newStr) == 0:
-            return
-        source_list = []
-        source = (newStr, source)
+        addon_log('Adding New Source: '+source_url.encode('utf-8'))
+
+        media_info = None
+        data = getSoup(source_url)
+        if data.find('channels_info'):
+            media_info = data.channels_info
+        elif data.find('items_info'):
+            media_info = data.items_info
+        if media_info:
+            source_media = {}
+            source_media['url'] = source_url
+            try: source_media['title'] = media_info.title.string
+            except: pass
+            try: source_media['thumbnail'] = media_info.thumbnail.string
+            except: pass
+            try: source_media['fanart'] = media_info.fanart.string
+            except: pass
+            try: source_media['genre'] = media_info.genre.string
+            except: pass
+            try: source_media['description'] = media_info.description.string
+            except: pass
+            try: source_media['date'] = media_info.date.string
+            except: pass
+            try: source_media['credits'] = media_info.credits.string
+            except: pass
+        else:
+            if '/' in source_url:
+                nameStr = source_url.split('/')[-1].split('.')[0]
+            if '\\' in source_url:
+                nameStr = source_url.split('\\')[-1].split('.')[0]
+            if '%' in nameStr:
+                nameStr = urllib.unquote_plus(nameStr)
+            keyboard = xbmc.Keyboard(nameStr,'Displayed Name, Rename?')
+            keyboard.doModal()
+            if (keyboard.isConfirmed() == False):
+                return
+            newStr = keyboard.getText()
+            if len(newStr) == 0:
+                return
+            source_media = {}
+            source_media['title'] = newStr
+            source_media['url'] = source_url
+            source_media['fanart'] = fanart
+
         if os.path.exists(source_file)==False:
-            source_list.append(source)
+            source_list = []
+            source_list.append(source_media)
             b = open(source_file,"w")
             b.write(json.dumps(source_list))
             b.close()
         else:
             sources = json.loads(open(source_file,"r").read())
-            sources.append(source)
+            sources.append(source_media)
             b = open(source_file,"w")
             b.write(json.dumps(sources))
             b.close()
@@ -104,20 +172,31 @@ def addSource(url=None):
         if not url is None:
             if 'xbmcplus.xb.funpic.de' in url:
                 xbmc.executebuiltin("XBMC.Container.Update(%s?mode=14,replace)" %sys.argv[0])
+            elif 'community-links' in url:
+                xbmc.executebuiltin("XBMC.Container.Update(%s?mode=10,replace)" %sys.argv[0])
         else: addon.openSettings()
 
 
 def rmSource(name):
         sources = json.loads(open(source_file,"r").read())
         for index in range(len(sources)):
-            if sources[index][0] == name:
-                del sources[index]
-                b = open(source_file,"w")
-                b.write(json.dumps(sources))
-                b.close()
-                break
+            if isinstance(sources[index], list):
+                if sources[index][0] == name:
+                    del sources[index]
+                    b = open(source_file,"w")
+                    b.write(json.dumps(sources))
+                    b.close()
+                    break
+            else:
+                if sources[index]['title'] == name:
+                    del sources[index]
+                    b = open(source_file,"w")
+                    b.write(json.dumps(sources))
+                    b.close()
+                    break
+        xbmc.executebuiltin("XBMC.Container.Refresh")
 
-                
+
 def get_xml_database(url, browse=False):
         if url is None:
             url = 'http://xbmcplus.xb.funpic.de/up/data/files/'
@@ -129,112 +208,32 @@ def get_xml_database(url, browse=False):
                 if name not in ['Parent Directory', 'recycle_bin/']:
                     if href.endswith('/'):
                         if browse:
-                            addDir(name,url+href,15,icon,fanart,'','','',False)
+                            addDir(name,url+href,15,icon,fanart,'','','')
                         else:
-                            addDir(name,url+href,14,icon,fanart,'','','',False)
+                            addDir(name,url+href,14,icon,fanart,'','','')
                     elif href.endswith('.xml'):
                         if browse:
-                            addDir(name,url+href,1,icon,fanart,'','','',False)
+                            addDir(name,url+href,1,icon,fanart,'','','','','download')
                         else:
                             if os.path.exists(source_file)==True:
                                 if name in SOURCES:
-                                    addDir(name+' (in use)',url+href,11,icon,fanart,'','','',False)
+                                    addDir(name+' (in use)',url+href,11,icon,fanart,'','','','','download')
                                 else:
-                                    addDir(name,url+href,11,icon,fanart,'','','',False)
+                                    addDir(name,url+href,11,icon,fanart,'','','','','download')
                             else:
-                                addDir(name,url+href,11,icon,fanart,'','','',False)
-                
+                                addDir(name,url+href,11,icon,fanart,'','','','','download')
 
-def getCommunitySources():
+
+def getCommunitySources(browse=False):
         url = 'http://community-links.googlecode.com/svn/trunk/'
         soup = BeautifulSoup(makeRequest(url), convertEntities=BeautifulSoup.HTML_ENTITIES)
         files = soup('ul')[0]('li')[1:]
         for i in files:
             name = i('a')[0]['href']
-            url = 'http://community-links.googlecode.com/svn/trunk/'+name
-            addDir(name,url,11,icon,fanart,'','','',False)
-
-
-def checkForUpdate():
-        url = 'http://community-links.googlecode.com/svn/trunk/'
-        data = makeRequest(url)
-        try:
-            revision = re.compile('<html><head><title>(.+?)/trunk</title></head>').findall(data)[0]
-        except TypeError:
-            return
-        if xbmcvfs.exists(REV):
-            R = open(REV,"r")
-            rev = R.read()
-            R.close()
-            revision_check = re.compile('<html><head><title>(.+?)/trunk</title></head>').findall(rev)[0]
-            print 'GoogleCode Revision: '+revision
-            print 'Current Revision: '+revision_check
-            if revision_check == revision:
-                u = open(update_time, "w")
-                u.write(str(datetime.datetime.now()))
-                u.close()
-                print 'Update Time: '+ str(datetime.datetime.now())
-                return
+            if browse:
+                addDir(name,url+name,1,icon,fanart,'','','','','download')
             else:
-                getUpdate(data)
-
-
-def getUpdate(data=None):
-        if data is None:
-            url = 'http://community-links.googlecode.com/svn/trunk/'
-            data = makeRequest(url)
-        soup = BeautifulSoup(data, convertEntities=BeautifulSoup.HTML_ENTITIES)
-        files = soup('ul')[0]('li')[1:]
-        try:
-            R = open(REV,"w")
-            R.write(data)
-            R.close()
-        except:
-            print "there was a problem writing REV to profile."
-        for i in files:
-            name = i('a')[0]['href']
-            url = 'http://community-links.googlecode.com/svn/trunk/'+name
-            link = makeRequest(url)
-            if not xbmcvfs.exists(addon.getSetting('save_location')):
-                success = xbmcvfs.mkdir(addon.getSetting('save_location'))
-            save_location = addon.getSetting('save_location').decode('utf-8')
-            if 'smb:' in save_location:
-                file_name = xbmc.makeLegalFilename(os.path.join( profile, 'temp', name))
-                f = open(os.path.join( profile, 'temp', name),"w")
-                f.write(link)
-                f.close()
-                copy = xbmcvfs.copy(os.path.join( profile, 'temp', name), os.path.join( save_location, name))
-                if copy:
-                    xbmcvfs.delete( xbmc.translatePath(os.path.join( profile, 'temp', name)))
-                else:
-                    print '------ Error smb: makeLegalFilename -----'
-            else:
-                try:
-                    file_name = xbmc.makeLegalFilename(os.path.join(save_location, name))
-                    f = open(os.path.join(save_location, name),"w")
-                    f.write(link)
-                    f.close()
-                except:
-                    print "there was a problem writing to save location."
-                    return
-        if not xbmcvfs.exists(os.path.join(profile, 'update_time')):
-            xbmc.makeLegalFilename(os.path.join(profile, 'update_time'))
-        u = open(update_time, "w")
-        u.write(str(datetime.datetime.now()))
-        u.close()
-        print 'Update Time: '+ str(datetime.datetime.now())
-        xbmc.executebuiltin("XBMC.Notification(LiveStreams,Community Lists Updated,5000,"+icon+")")
-
-
-if addon.getSetting('community_list') == "true":
-    if addon.getSetting('save_location') == "":
-        xbmc.executebuiltin("XBMC.Notification('LiveStreams','Choose a location to save files and select OK to save.',15000,"+icon+")")
-        addon.openSettings()
-    else:
-        if xbmcvfs.exists(os.path.join(profile, 'update_time')):
-            time_string = open(update_time, "r").read()
-            if str(datetime.datetime.now() - datetime.timedelta(minutes=10)) > time_string:
-                checkForUpdate()
+                addDir(name,url+name,11,icon,fanart,'','','','','download')
 
 
 def getSoup(url):
@@ -243,19 +242,18 @@ def getSoup(url):
         else:
             if xbmcvfs.exists(url):
                 if url.startswith("smb://"):
-                    copy = xbmcvfs.copy( url, xbmc.translatePath(os.path.join(profile, 'temp', 'sorce_temp.txt')))
+                    copy = xbmcvfs.copy(url, os.path.join(profile, 'temp', 'sorce_temp.txt'))
                     if copy:
-                        data = open( xbmc.translatePath(os.path.join(profile, 'temp', 'sorce_temp.txt')), "r").read()
-                        xbmcvfs.delete( xbmc.translatePath(os.path.join(profile, 'temp', 'sorce_temp.txt')) )
+                        data = open(os.path.join(profile, 'temp', 'sorce_temp.txt'), "r").read()
+                        xbmcvfs.delete(os.path.join(profile, 'temp', 'sorce_temp.txt'))
                     else:
-                        print "--- failed to copy from smb: ----"
+                        addon_log("failed to copy from smb:")
                 else:
                     data = open(url, 'r').read()
             else:
-                print "---- Soup Data not found! ----"
+                addon_log("Soup Data not found!")
                 return
-        soup = BeautifulSOAP(data, convertEntities=BeautifulStoneSoup.XML_ENTITIES)
-        return soup
+        return BeautifulSOAP(data, convertEntities=BeautifulStoneSoup.XML_ENTITIES)
 
 
 def getData(url,fanart):
@@ -301,17 +299,26 @@ def getData(url,fanart):
                         raise
                 except:
                     date = ''
+
                 try:
-                    addDir(name.encode('utf-8', 'ignore'),url.encode('utf-8'),2,thumbnail,fanArt,desc,genre,date)
+                    credits = channel('credits')[0].string
+                    if credits == None:
+                        raise
                 except:
-                    print 'There was a problem adding directory from getData(): '+name.encode('utf-8', 'ignore')
+                    credits = ''
+
+                try:
+                    addDir(name.encode('utf-8', 'ignore'),url.encode('utf-8'),2,thumbnail,fanArt,desc,genre,date,credits,True)
+                except:
+                    addon_log('There was a problem adding directory from getData(): '+name.encode('utf-8', 'ignore'))
         else:
+            addon_log('No Channels: getItems')
             getItems(soup('item'),fanart)
 
 
 def getChannelItems(name,url,fanart):
         soup = getSoup(url)
-        channel_list = soup.find('channel', attrs={'name' : name})
+        channel_list = soup.find('channel', attrs={'name' : name.decode('utf-8')})
         items = channel_list('item')
         try:
             fanArt = channel_list('fanart')[0].string
@@ -357,28 +364,38 @@ def getChannelItems(name,url,fanart):
                     raise
             except:
                 date = ''
+
             try:
-                addDir(name.encode('utf-8', 'ignore'),url.encode('utf-8'),3,thumbnail,fanArt,desc,genre,date)
+                credits = channel('credits')[0].string
+                if credits == None:
+                    raise
             except:
-                print 'There was a problem adding directory - '+name.encode('utf-8', 'ignore')
+                credits = ''
+
+            try:
+                addDir(name.encode('utf-8', 'ignore'),url.encode('utf-8'),3,thumbnail,fanArt,desc,genre,credits,date)
+            except:
+                addon_log('There was a problem adding directory - '+name.encode('utf-8', 'ignore'))
         getItems(items,fanArt)
 
 
 def getSubChannelItems(name,url,fanart):
         soup = getSoup(url)
-        channel_list = soup.find('subchannel', attrs={'name' : name})
+        channel_list = soup.find('subchannel', attrs={'name' : name.decode('utf-8')})
         items = channel_list('subitem')
         getItems(items,fanart)
 
 
 def getItems(items,fanart):
+        total = len(items)
+        addon_log('Total Items: %s' %total)
         for item in items:
             try:
                 name = item('title')[0].string
                 if name is None:
                     name = 'unknown?'
             except:
-                print '-----Name Error----'
+                addon_log('Name Error')
                 name = ''
             try:
                 if item('epg'):
@@ -387,14 +404,17 @@ def getItems(items,fanart):
                 else:
                     pass
             except:
-                print '----- EPG Error ----'
+                addon_log('EPG Error')
 
             try:
                 url = []
                 for i in item('link'):
-                    url.append(i.string)
+                    if not i.string == None:
+                        url.append(i.string)
+                if len(url) < 1:
+                    raise
             except:
-                print '---- URL Error Passing ----'+name
+                addon_log('Error <link> element, Passing:'+name.encode('utf-8', 'ignore'))
                 continue
 
             try:
@@ -435,6 +455,24 @@ def getItems(items,fanart):
                     raise
             except:
                 date = ''
+
+            regexs = None
+            if item('regex'):
+                try:
+                    regexs = {}
+                    for i in item('regex'):
+                        regexs[i('name')[0].string] = {}
+                        regexs[i('name')[0].string]['expre'] = i('expres')[0].string
+                        regexs[i('name')[0].string]['page'] = i('page')[0].string
+                        try:
+                            regexs[i('name')[0].string]['refer'] = i('referer')[0].string
+                        except:
+                            addon_log("Regex: -- No Referer --")
+                    regexs = urllib.quote(repr(regexs))
+                except:
+                    regexs = None
+                    addon_log('regex Error: '+name.encode('utf-8', 'ignore'))
+
             try:
                 if len(url) > 1:
                     alt = 0
@@ -444,13 +482,37 @@ def getItems(items,fanart):
                     if addon.getSetting('add_playlist') == "false":
                         for i in url:
                             alt += 1
-                            addLink(i,'%s) %s' %(str(alt), name.encode('utf-8', 'ignore')),thumbnail,fanArt,desc,genre,date,True,playlist)
+                            addLink(i,'%s) %s' %(alt, name.encode('utf-8', 'ignore')),thumbnail,fanArt,desc,genre,date,True,playlist,regexs,total)
                     else:
-                        addLink('', name.encode('utf-8', 'ignore'),thumbnail,fanArt,desc,genre,date,True,playlist)                    
+                        addLink('', name.encode('utf-8', 'ignore'),thumbnail,fanArt,desc,genre,date,True,playlist,regexs,total)
                 else:
-                    addLink(url[0],name.encode('utf-8', 'ignore'),thumbnail,fanArt,desc,genre,date,True)
+                    addLink(url[0],name.encode('utf-8', 'ignore'),thumbnail,fanArt,desc,genre,date,True,None,regexs,total)
             except:
-                print 'There was a problem adding link - '+name.encode('utf-8', 'ignore')
+                addon_log('There was a problem adding item - '+name.encode('utf-8', 'ignore'))
+
+
+def getRegexParsed(regexs, url):
+        regexs = eval(urllib.unquote(regexs))
+        cachedPages = {}
+        doRegexs = re.compile('\$doregex\[([^\]]*)\]').findall(url)
+        for k in doRegexs:
+            if k in regexs:
+                m = regexs[k]
+                if m['page'] in cachedPages:
+                    link = cachedPages[m['page']]
+                else:
+                    req = urllib2.Request(m['page'])
+                    req.add_header('User-Agent', 'Mozilla/5.0 (Windows NT 6.1; rv:14.0) Gecko/20100101 Firefox/14.0.1')
+                    if 'refer' in m:
+                        req.add_header('Referer', m['refer'])
+                    response = urllib2.urlopen(req)
+                    link = response.read()
+                    response.close()
+                    cachedPages[m['page']] = link
+                reg = re.compile(m['expre']).search(link)
+                url = url.replace("$doregex[" + k + "]", reg.group(1).strip())
+        item = xbmcgui.ListItem(path=url)
+        xbmcplugin.setResolvedUrl(int(sys.argv[1]), True, item)
 
 
 def get_params():
@@ -472,7 +534,9 @@ def get_params():
 
 
 def getFavorites():
-        for i in json.loads(open(favorites).read()):
+        items = json.loads(open(favorites).read())
+        total = len(items)
+        for i in items:
             name = i[0]
             url = i[1]
             iconimage = i[2]
@@ -485,30 +549,40 @@ def getFavorites():
                     fanArt = iconimage
                 else:
                     fanArt = fanart
-            addLink(url,name,iconimage,fanArt,'','','')
+            try: playlist = i[5]
+            except: playlist = None
+            try: regexs = i[6]
+            except: regexs = None
+
+            try:
+                if not i[4] == 0:
+                    addDir(name,url,i[4],iconimage,fanart,'','','','','fav')
+                else:
+                    addLink(url,name,iconimage,fanArt,'','','','fav',playlist,regexs,total)
+            except:
+                addLink(url,name,iconimage,fanArt,'','','','fav',playlist,regexs,total)
 
 
-def addFavorite(name,url,iconimage,fanart):
+def addFavorite(name,url,iconimage,fanart,mode,playlist=None,regexs=None):
         favList = []
         if os.path.exists(favorites)==False:
-            print 'Making Favorites File'
-            favList.append((name,url,iconimage,fanart))
+            addon_log('Making Favorites File')
+            favList.append((name,url,iconimage,fanart,mode,playlist,regexs))
             a = open(favorites, "w")
             a.write(json.dumps(favList))
             a.close()
         else:
-            print 'Appending Favorites'
+            addon_log('Appending Favorites')
             a = open(favorites).read()
             data = json.loads(a)
-            data.append((name,url,iconimage,fanart))
+            data.append((name,url,iconimage,fanart,mode))
             b = open(favorites, "w")
             b.write(json.dumps(data))
             b.close()
 
 
 def rmFavorite(name):
-        a = open(favorites).read()
-        data = json.loads(a)
+        data = json.loads(open(favorites).read())
         for index in range(len(data)):
             if data[index][0]==name:
                 del data[index]
@@ -516,6 +590,7 @@ def rmFavorite(name):
                 b.write(json.dumps(data))
                 b.close()
                 break
+        xbmc.executebuiltin("XBMC.Container.Refresh")
 
 
 def play_playlist(name, list):
@@ -529,56 +604,101 @@ def play_playlist(name, list):
         xbmc.executebuiltin('playlist.playoffset(video,0)')
 
 
-def addDir(name,url,mode,iconimage,fanart,description,genre,date,showcontext=True):
+def download_file(name, url):
+        if addon.getSetting('save_location') == "":
+            xbmc.executebuiltin("XBMC.Notification('LiveStreams','Choose a location to save files.',15000,"+icon+")")
+            addon.openSettings()
+        params = {'url': url, 'download_path': addon.getSetting('save_location')}
+        downloader.download(name, params)
+        dialog = xbmcgui.Dialog()
+        ret = dialog.yesno('LiveStreams', 'Do you want to add this file as a source?')
+        if ret:
+            addSource(os.path.join(addon.getSetting('save_location'), name))
+
+
+def addDir(name,url,mode,iconimage,fanart,description,genre,date,credits,showcontext=False):
         u=sys.argv[0]+"?url="+urllib.quote_plus(url)+"&mode="+str(mode)+"&name="+urllib.quote_plus(name)+"&fanart="+urllib.quote_plus(fanart)
         ok=True
+        if date == '':
+            date = None
+        else:
+            description += '\n\nDate: %s' %date
         liz=xbmcgui.ListItem(name, iconImage="DefaultFolder.png", thumbnailImage=iconimage)
-        liz.setInfo( type="Video", infoLabels={ "Title": name, "Plot": description, "Genre": genre, "Date": date } )
-        liz.setProperty( "Fanart_Image", fanart )
-        if showcontext == True:
-            try:
+        liz.setInfo(type="Video", infoLabels={ "Title": name, "Plot": description, "Genre": genre, "dateadded": date, "credits": credits })
+        liz.setProperty("Fanart_Image", fanart)
+        if showcontext:
+            contextMenu = []
+            if showcontext == 'source':
                 if name in str(SOURCES):
-                    contextMenu = [('Remove from Sources','XBMC.Container.Update(%s?mode=8&name=%s)' %(sys.argv[0], urllib.quote_plus(name)))]
-                    liz.addContextMenuItems(contextMenu, True)
-            except:
-                pass
+                    contextMenu.append(('Remove from Sources','XBMC.RunPlugin(%s?mode=8&name=%s)' %(sys.argv[0], urllib.quote_plus(name))))
+            elif showcontext == 'download':
+                contextMenu.append(('Download','XBMC.RunPlugin(%s?url=%s&mode=9&name=%s)'
+                                    %(sys.argv[0], urllib.quote_plus(url), urllib.quote_plus(name))))
+            elif showcontext == 'fav':
+                contextMenu.append(('Remove from LiveStreams Favorites','XBMC.RunPlugin(%s?mode=6&name=%s)'
+                                    %(sys.argv[0], urllib.quote_plus(name))))
+            if not name in FAV:
+                contextMenu.append(('Add to LiveStreams Favorites','XBMC.RunPlugin(%s?mode=5&name=%s&url=%s&iconimage=%s&fanart=%s&fav_mode=%s)'
+                         %(sys.argv[0], urllib.quote_plus(name), urllib.quote_plus(url), urllib.quote_plus(iconimage), urllib.quote_plus(fanart), mode)))
+            liz.addContextMenuItems(contextMenu)
         ok=xbmcplugin.addDirectoryItem(handle=int(sys.argv[1]),url=u,listitem=liz,isFolder=True)
         return ok
 
 
-def addLink(url,name,iconimage,fanart,description,genre,date,showcontext=True,playlist=None):
+def addLink(url,name,iconimage,fanart,description,genre,date,showcontext,playlist,regexs,total):
+        ok = True
+        if regexs: mode = '17'
+        else: mode = '12'
         u=sys.argv[0]+"?"
-        if not playlist is None:
+        if playlist:
             if addon.getSetting('add_playlist') == "false":
-                u += "url="+urllib.quote_plus(url)+"&mode=12"
+                u += "url="+urllib.quote_plus(url)+"&mode="+mode
             else:
-                u += "mode=13&name=%s&playlist=%s" %(urllib.quote_plus(name), urllib.quote_plus(str(playlist).replace(',','|')))
+                u += "mode=%s&name=%s&playlist=%s" %(mode, urllib.quote_plus(name), urllib.quote_plus(str(playlist).replace(',','|')))
         else:
-            u += "url="+urllib.quote_plus(url)+"&mode=12"
-        ok=True
+            u += "url="+urllib.quote_plus(url)+"&mode="+mode
+        if regexs:
+            u += "&regexs="+regexs
+        if date == '':
+            date = None
+        else:
+            description += '\n\nDate: %s' %date
         liz=xbmcgui.ListItem(name, iconImage="DefaultVideo.png", thumbnailImage=iconimage)
-        liz.setInfo( type="Video", infoLabels={ "Title": name, "Plot": description, "Genre": genre, "Date": date } )
-        liz.setProperty( "Fanart_Image", fanart )
+        liz.setInfo(type="Video", infoLabels={ "Title": name, "Plot": description, "Genre": genre, "dateadded": date })
+        liz.setProperty("Fanart_Image", fanart)
         liz.setProperty('IsPlayable', 'true')
         if showcontext:
-            try:
-                if name in FAV:
-                    contextMenu = [('Remove from LiveStreams Favorites','XBMC.Container.Update(%s?mode=6&name=%s)' %(sys.argv[0], urllib.quote_plus(name)))]
-                else:
-                    contextMenu = [('Add to LiveStreams Favorites','XBMC.Container.Update(%s?mode=5&name=%s&url=%s&iconimage=%s&fanart=%s)' %(sys.argv[0], urllib.quote_plus(name), urllib.quote_plus(url), urllib.quote_plus(iconimage), urllib.quote_plus(fanart)))]
-            except:
-                contextMenu = [('Add to LiveStreams Favorites','XBMC.Container.Update(%s?mode=5&name=%s&url=%s&iconimage=%s&fanart=%s)' %(sys.argv[0], urllib.quote_plus(name), urllib.quote_plus(url), urllib.quote_plus(iconimage), urllib.quote_plus(fanart)))]
+            contextMenu = []
+            if showcontext == 'fav':
+                contextMenu.append(
+                    ('Remove from LiveStreams Favorites','XBMC.RunPlugin(%s?mode=6&name=%s)'
+                     %(sys.argv[0], urllib.quote_plus(name)))
+                     )
+            elif not name in FAV:
+                fav_params = (
+                    '%s?mode=5&name=%s&url=%s&iconimage=%s&fanart=%s&fav_mode=0'
+                    %(sys.argv[0], urllib.quote_plus(name), urllib.quote_plus(url), urllib.quote_plus(iconimage), urllib.quote_plus(fanart))
+                    )
+                if playlist:
+                    fav_params += 'playlist='+urllib.quote_plus(str(playlist).replace(',','|'))
+                if regexs:
+                    fav_params += "&regexs="+regexs
+                contextMenu.append(('Add to LiveStreams Favorites','XBMC.RunPlugin(%s)' %fav_params))
             liz.addContextMenuItems(contextMenu)
         if not playlist is None:
             if addon.getSetting('add_playlist') == "false":
                 playlist_name = name.split(') ')[1]
-                contextMenu_ = [('Play '+playlist_name+' PlayList','XBMC.RunPlugin(%s?mode=13&name=%s&playlist=%s)' %(sys.argv[0], urllib.quote_plus(playlist_name), urllib.quote_plus(str(playlist).replace(',','|'))))]
+                contextMenu_ = [
+                    ('Play '+playlist_name+' PlayList','XBMC.RunPlugin(%s?mode=13&name=%s&playlist=%s)'
+                     %(sys.argv[0], urllib.quote_plus(playlist_name), urllib.quote_plus(str(playlist).replace(',','|'))))
+                     ]
                 liz.addContextMenuItems(contextMenu_)
-        ok=xbmcplugin.addDirectoryItem(handle=int(sys.argv[1]),url=u,listitem=liz)
+        ok=xbmcplugin.addDirectoryItem(handle=int(sys.argv[1]),url=u,listitem=liz,totalItems=total)
         return ok
 
 
-  # Thanks to daschacka, an epg scraper for http://i.teleboy.ch/programm/station_select.php - http://forum.xbmc.org/showpost.php?p=936228&postcount=1076
+## Thanks to daschacka, an epg scraper for http://i.teleboy.ch/programm/station_select.php
+##  http://forum.xbmc.org/showpost.php?p=936228&postcount=1076
 def getepg(link):
         url=urllib.urlopen(link)
         source=url.read()
@@ -589,13 +709,14 @@ def getepg(link):
         nowtime = sourceuhrzeit[0][40:len(sourceuhrzeit[0])]
         sourcetitle = source3[2].split("</a></p></div>")
         nowtitle = sourcetitle[0][17:len(sourcetitle[0])]
-        nowtitle = nowtitle.replace("ö","oe")
-        nowtitle = nowtitle.replace("ä","ae")
-        nowtitle = nowtitle.replace("ü","ue")
+        nowtitle = nowtitle.encode('utf-8')
+        nowtitle = nowtitle.encode('utf-8')
+        nowtitle = nowtitle.encode('utf-8')
         return "  - "+nowtitle+" - "+nowtime
 
 
 xbmcplugin.setContent(int(sys.argv[1]), 'movies')
+
 try:
     xbmcplugin.addSortMethod(int(sys.argv[1]), xbmcplugin.SORT_METHOD_UNSORTED)
 except:
@@ -619,6 +740,11 @@ url=None
 name=None
 mode=None
 playlist=None
+iconimage=None
+fanart=FANART
+playlist=None
+fav_mode=None
+regexs=None
 
 try:
     url=urllib.unquote_plus(params["url"]).decode('utf-8')
@@ -644,34 +770,42 @@ try:
     playlist=eval(urllib.unquote_plus(params["playlist"]).replace('|',','))
 except:
     pass
+try:
+    fav_mode=int(params["fav_mode"])
+except:
+    pass
+try:
+    regexs=params["regexs"]
+except:
+    pass
 
-print "Mode: "+str(mode)
+addon_log("Mode: "+str(mode))
 if not url is None:
-    print "URL: "+str(url.encode('utf-8'))
-print "Name: "+str(name)
+    addon_log("URL: "+str(url.encode('utf-8')))
+addon_log("Name: "+str(name))
 
 if mode==None:
-    print "getSources"
+    addon_log("getSources")
     getSources()
 
 elif mode==1:
-    print "getData"
+    addon_log("getData")
     getData(url,fanart)
 
 elif mode==2:
-    print "getChannelItems"
+    addon_log("getChannelItems")
     getChannelItems(name,url,fanart)
 
 elif mode==3:
-    print ""
+    addon_log("getSubChannelItems")
     getSubChannelItems(name,url,fanart)
 
 elif mode==4:
-    print ""
+    addon_log("getFavorites")
     getFavorites()
 
 elif mode==5:
-    print ""
+    addon_log("addFavorite")
     try:
         name = name.split('\\ ')[1]
     except:
@@ -680,10 +814,10 @@ elif mode==5:
         name = name.split('  - ')[0]
     except:
         pass
-    addFavorite(name,url,iconimage,fanart)
+    addFavorite(name,url,iconimage,fanart,fav_mode)
 
 elif mode==6:
-    print "rmFavorite"
+    addon_log("rmFavorite")
     try:
         name = name.split('\\ ')[1]
     except:
@@ -695,40 +829,48 @@ elif mode==6:
     rmFavorite(name)
 
 elif mode==7:
-    print "addSource"
+    addon_log("addSource")
     addSource(url)
 
 elif mode==8:
-    print "rmSource"
+    addon_log("rmSource")
     rmSource(name)
 
 elif mode==9:
-    print "getUpdate"
-    getUpdate()
+    addon_log("download_file")
+    download_file(name, url)
 
 elif mode==10:
-    print "getCommunitySources"
+    addon_log("getCommunitySources")
     getCommunitySources()
 
 elif mode==11:
-    print "addSource"
+    addon_log("addSource")
     addSource(url)
 
 elif mode==12:
-    print "setResolvedUrl"
+    addon_log("setResolvedUrl")
     item = xbmcgui.ListItem(path=url)
     xbmcplugin.setResolvedUrl(int(sys.argv[1]), True, item)
 
 elif mode==13:
-    print "play_playlist"
+    addon_log("play_playlist")
     play_playlist(name, playlist)
 
 elif mode==14:
-    print "get_xml_database"
+    addon_log("get_xml_database")
     get_xml_database(url)
 
 elif mode==15:
-    print "browse_xml_database"
+    addon_log("browse_xml_database")
     get_xml_database(url, True)
+
+elif mode==16:
+    addon_log("browse_community")
+    getCommunitySources(True)
+
+elif mode==17:
+    addon_log("getRegexParsed")
+    getRegexParsed(regexs, url)
 
 xbmcplugin.endOfDirectory(int(sys.argv[1]))
