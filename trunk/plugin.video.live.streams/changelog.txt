@@ -1,3 +1,7 @@
+Version 1.1.0
+fix play items with multiple links as playlist
+fix reading sources via nfs://
+
 Version 1.0.9
 fix script error when having only one source
 fix decode errors with non ascii characters in list-item
