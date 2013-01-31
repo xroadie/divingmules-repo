@@ -241,7 +241,7 @@ def getSoup(url):
             data = makeRequest(url)
         else:
             if xbmcvfs.exists(url):
-                if url.startswith("smb://"):
+                if url.startswith("smb://") or url.startswith("nfs://"):
                     copy = xbmcvfs.copy(url, os.path.join(profile, 'temp', 'sorce_temp.txt'))
                     if copy:
                         data = open(os.path.join(profile, 'temp', 'sorce_temp.txt'), "r").read()
@@ -650,11 +650,13 @@ def addLink(url,name,iconimage,fanart,description,genre,date,showcontext,playlis
         if regexs: mode = '17'
         else: mode = '12'
         u=sys.argv[0]+"?"
+        play_list = False
         if playlist:
             if addon.getSetting('add_playlist') == "false":
                 u += "url="+urllib.quote_plus(url)+"&mode="+mode
             else:
-                u += "mode=%s&name=%s&playlist=%s" %(mode, urllib.quote_plus(name), urllib.quote_plus(str(playlist).replace(',','|')))
+                u += "mode=13&name=%s&playlist=%s" %(urllib.quote_plus(name), urllib.quote_plus(str(playlist).replace(',','|')))
+                play_list = True
         else:
             u += "url="+urllib.quote_plus(url)+"&mode="+mode
         if regexs:
@@ -666,7 +668,8 @@ def addLink(url,name,iconimage,fanart,description,genre,date,showcontext,playlis
         liz=xbmcgui.ListItem(name, iconImage="DefaultVideo.png", thumbnailImage=iconimage)
         liz.setInfo(type="Video", infoLabels={ "Title": name, "Plot": description, "Genre": genre, "dateadded": date })
         liz.setProperty("Fanart_Image", fanart)
-        liz.setProperty('IsPlayable', 'true')
+        if not play_list:
+            liz.setProperty('IsPlayable', 'true')
         if showcontext:
             contextMenu = []
             if showcontext == 'fav':
