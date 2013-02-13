@@ -1,106 +1,189 @@
-import urllib,urllib2,re,os,cookielib
-import xbmcplugin,xbmcgui,xbmcaddon
+﻿import urllib
+import urllib2
+import re
+import os
+import cookielib
+import xbmcplugin
+import xbmcgui
+import xbmcaddon
+import StorageServer
 from BeautifulSoup import BeautifulSoup
 
-__settings__ = xbmcaddon.Addon(id='plugin.video.steam')
-home = __settings__.getAddonInfo('path')
-icon = xbmc.translatePath( os.path.join( home, 'icon.png' ) )
+addon = xbmcaddon.Addon(id='plugin.video.steam')
+home = xbmc.translatePath(addon.getAddonInfo('path'))
+icon = os.path.join(home, 'icon.png')
 fanart = 'http://www.deviantart.com/download/245134540/steam_logo_by_thegreatjug-d41y30s.png'
-
 cj = cookielib.LWPCookieJar()
 opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(cj))
 urllib2.install_opener(opener)
+cache = StorageServer.StorageServer("Steam", 1)
+
+
+def make_request(url):
+        headers = {'User-agent' : 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:18.0) Gecko/20100101 Firefox/18.0',
+                   'Referer' : 'http://store.steampowered.com/freestuff/videos'}
+        try:
+            req = urllib2.Request(url,None,headers)
+            response = urllib2.urlopen(req)
+            data = response.read()
+            response.close()
+            if response.geturl() != url:
+                print 'Redirect URL: %s' %response.geturl()
+            return data
+        except urllib2.URLError, e:
+            print 'We failed to open "%s".' % url
+            if hasattr(e, 'reason'):
+                print 'We failed to reach a server.'
+                print 'Reason: ', e.reason
+            if hasattr(e, 'code'):
+                print 'We failed with error code - %s.' % e.code
+
+
+def cache_homepage():
+        return make_request('http://store.steampowered.com/freestuff/videos')
+
 
 def Categories():
-        addDir('Newest Videos','http://store.steampowered.com/freestuff/videos',1,icon)
+        addDir('Newest Videos','',1,icon)
+        addDir('By Genre', '', 5, icon)
         addDir('Most Watched (past 48 hours)','',3,icon)
-        addDir('Search','',4,xbmc.translatePath( os.path.join( home, 'resources', 'search.png' ) ))
+        addDir('Search','',4,os.path.join(home, 'resources', 'search.png' ))
 
 
 def Index(url):
-        headers = {'User-agent' : 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:6.0) Gecko/20100101 Firefox/6.0'}
-        req = urllib2.Request(url,None,headers)
-        response = urllib2.urlopen(req)
-        link=response.read()
-        soup = BeautifulSoup(link, convertEntities=BeautifulSoup.HTML_ENTITIES)
-        newVideos = soup.findAll('div', attrs={'class' : "tab_video_desc"})
-        for video in newVideos:
-            name = video('a')[0].string
-            vidUrl = video('a')[0]['href']
-            Id = vidUrl.split('?')[0].split('/')[-1]
-            thumb = 'http://cdn.steampowered.com/v/gfx/apps/'+Id+'/movie.184x123.jpg'
-            addDir(name.encode("ascii", "ignore") ,vidUrl,2,thumb)
-        try:
-            page = soup.find('div', attrs={'id' : "tab_NewVideos_next"}).a['href']
-            navcontext = 'navcontext='+page.split('{')[1].split(':')[-1].split('"')[1]
-            start = 'start='+str(int(page.split(',')[1])+10)
-            url = 'http://store.steampowered.com/search/tab?style=video&'+navcontext+'&tab=NewVideos&'+start+'&count=10'
-        except:
-            url = 'http://store.steampowered.com/search/tab?style=video&navcontext=1_220_225_&tab=NewVideos&start='+str(int(url.split('&')[-2].split('=')[1])+10)+'&count=10'
-        addDir('Next Page',url,1,xbmc.translatePath( os.path.join( home, 'resources', 'next.png' ) ))
+        if url is None:
+            data = cache.cacheFunction(cache_homepage)
+            soup = BeautifulSoup(data, convertEntities=BeautifulSoup.HTML_ENTITIES)
+        else:
+            soup = BeautifulSoup(make_request(url), convertEntities=BeautifulSoup.HTML_ENTITIES)
+        video_items = soup.findAll('div', attrs={'class' : "tab_video_desc"})
+        for i in video_items:
+            name = i('a')[0].string.encode('utf-8')
+            video_url = i('a')[0]['href']
+            video_id = video_url.split('?')[0].split('/')[-1]
+            thumb = 'http://cdn.steampowered.com/v/gfx/apps/'+video_id+'/header.jpg'
+            desc = i.getText('  ').strip().replace('  ', '\n')
+            addLink(name,video_url,desc,thumb)
+        page_url = None
+        if url is None:
+            try:
+                page = soup.find('div', attrs={'id' : "tab_NewVideos_next"}).a['href']
+                print 'Page: '+page
+                navcontext = 'navcontext='+page.split('{')[1].split(':')[-1].split('"')[1]
+                start = 'start='+str(int(page.split(',')[1])+10)
+                page_url = 'http://store.steampowered.com/search/tab?style=video&'+navcontext+'&tab=NewVideos&'+start+'&count=10'
+            except:
+                print 'Page Exception'
+        else:
+            e = url.split('&start')
+            start = int(e[1].split('&')[0][1:])+10
+            page_url = e[0]+'&start='+str(start)+'&'+e[1].split('&')[1]
+        if page_url:
+            addDir('Next Page',page_url,1,os.path.join(home, 'resources', 'next.png'))
 
 
 def mostWatched():
-        headers = {'User-agent' : 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:6.0) Gecko/20100101 Firefox/6.0'}
-        url='http://store.steampowered.com/freestuff/videos'
-        req = urllib2.Request(url,None,headers)
-        response = urllib2.urlopen(req)
-        link=response.read()
-        soup = BeautifulSoup(link)
-        videos = soup.findAll('div', attrs={'class' : "top_video_capsule"})
-        for video in videos:
-            name = video('a')[1].string
-            url = video('a')[1]['href']
-            thumb = video('img')[0]['src']
-            addDir(name.encode("ascii", "ignore") ,url,2,thumb)
+        data = cache.cacheFunction(cache_homepage)
+        soup = BeautifulSoup(data, convertEntities=BeautifulSoup.HTML_ENTITIES)
+        video_items = soup.findAll('div', attrs={'class' : "top_video_capsule"})
+        for i in video_items:
+            name = i('a')[1].string.encode('utf-8')
+            video_url = i('a')[1]['href']
+            video_id = video_url.split('?')[0].split('/')[-1]
+            thumb = 'http://cdn.steampowered.com/v/gfx/apps/'+video_id+'/header.jpg'
+            desc = i.getText('  ').strip().replace('  ', '\n')
+            addLink(name,video_url,desc,thumb)
 
 
-def getVideos(url):
-        headers = {'User-agent' : 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:6.0) Gecko/20100101 Firefox/6.0'}
-        req = urllib2.Request(url,None,headers)
-        response = urllib2.urlopen(req)
-        link=response.read()
-        soup = BeautifulSoup(link, convertEntities=BeautifulSoup.HTML_ENTITIES)
-        if soup.find('div', attrs={'id' : "agegate_box"}):
+def getGenres():
+        data = cache.cacheFunction(cache_homepage)
+        soup = BeautifulSoup(data, convertEntities=BeautifulSoup.HTML_ENTITIES)
+        genre_tab = (soup.find('div', attrs={'id': 'genre_flyout'})
+                     ('div', attrs={'class': "popup_body popup_menu shadow_content"})[0]('a'))
+        for i in genre_tab:
+            name = i.string.strip()
+            url = 'http://store.steampowered.com/search/?genre=%s&sort_by=&category1=999' %urllib.quote(name)
+            addDir(name,url,4,icon)
+
+
+def getVideos(url ,name):
+        if name.startswith('#'):
+            name = name.split(' : ' ,1)[1]
+        data = make_request(url)
+        if re.search('<h2>Please enter your birth date to continue:</h2>', data):
             print 'AGE CHECK'
-            headers = {'User-agent' : 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:6.0) Gecko/20100101 Firefox/6.0'}
             data = '/?ageDay=1&ageMonth=January&ageYear=1980&snr=1_agecheck_agecheck__age-gate'
-            newUrl = url.replace('video','agecheck/video').split('?')[0]+data
-            req = urllib2.Request(newUrl,None,headers)
-            response = urllib2.urlopen(req)
-            link=response.read()
-            response.close()
-        match = re.compile("javascript:showGotSteamModal\('gotSteamModal', '(.+?)', '(.+?)'\)").findall(link)
-        for vidId,name in match:
-            vidId = vidId.split('/')[-1]
-            name = name.replace('&quot;','"').decode("utf-8")
-            thumb = 'http://cdn.steampowered.com/v/gfx/apps/'+vidId+'/movie.184x123.jpg'
-            url = 'http://cdn.steampowered.com/v/gfx/apps/'+vidId+'/movie940.flv'
-            addLink(name,url,thumb)
+            if '/app/' in url:
+                url = url.replace('/app/','/agecheck/app/').split('?')[0]+data
+            elif '/video/' in url:
+                url = url.replace('/video/','/agecheck/video/').split('?')[0]+data
+            data = make_request(url)
+
+        vid_url = None
+        filenames = re.findall('FILENAME: "(.+?)"', data)
+        url_id = url.split('?')[0].split('/')[-1]
+        for i in filenames:
+            if url_id in i:
+                vid_url = i
+                break
+        if not vid_url:
+            videos = []
+            pattern = "showGotSteamModal\('gotSteamModal', 'steam://run/(.+?)', '(.+?)'\)"
+            match = re.findall(pattern, data)
+            if len(match) > 0:
+                for vid_id, title in match:
+                    print (title, name)
+                    if not title == name:
+                        videos.append((vid_id, title))
+                    else:
+                        for i in filenames:
+                            if vid_id in i:
+                                vid_url = i
+                                break
+                    if vid_url:
+                        break
+            if not vid_url:
+                if len(filenames) > 0:
+                    print 'No name match, using first found filename'
+                    vid_url = filenames[0]
+                elif len(videos) > 0:
+                    print 'No filenames, using videos[0]_id'
+                    vid_url = 'http://media.steampowered.com/steam/apps/%s/movie940.flv' %videos[0][0]
+        if not vid_url:
+            print 're did not match: '+url
+            print 'using url_id'
+            vid_url = 'http://media.steampowered.com/steam/apps/%s/movie940.flv' %url_id
+        item = xbmcgui.ListItem(path=vid_url)
+        xbmcplugin.setResolvedUrl(int(sys.argv[1]), True, item)
 
 
-def Search():
-        searchStr = ''
-        keyboard = xbmc.Keyboard(searchStr,'Search')
-        keyboard.doModal()
-        if (keyboard.isConfirmed() == False):
-            return
-        newStr = keyboard.getText().replace(' ','+')
-        if len(newStr) == 0:
-            return
-        headers = {'User-agent' : 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:6.0) Gecko/20100101 Firefox/6.0'}
-        url='http://store.steampowered.com/search/?term='+newStr
-        req = urllib2.Request(url,None,headers)
-        response = urllib2.urlopen(req)
-        link=response.read()
-        soup = BeautifulSoup(link)
+def Search(url):
+        if url is None:
+            searchStr = ''
+            keyboard = xbmc.Keyboard(searchStr,'Search')
+            keyboard.doModal()
+            if (keyboard.isConfirmed() == False):
+                return
+            newStr = keyboard.getText()
+            if len(newStr) == 0:
+                return
+            url = 'http://store.steampowered.com/search/?term='+urllib.quote_plus(newStr)
+
+        soup = BeautifulSoup(make_request(url), convertEntities=BeautifulSoup.HTML_ENTITIES)
         items = soup.find('div', attrs={'id' : "search_result_container"})('a')
         for i in items:
             if re.search('video', i['href']):
-                name = i.h4.string
-                url = i['href']
-                thumb = i('img')[1]['src']
-                addDir(name,url,2,thumb)
+                name = i.h4.string.encode('utf-8')
+                video_url = i['href']
+                t = i('img')[1]['src']
+                thumb = t.rsplit('/', 1)[0]+'/header.jpg'
+                desc = i.p.string.strip()
+                addLink(name, video_url, desc, thumb)
+
+        page_items = soup.find('div', attrs={'class': "search_pagination_right"})('a')
+        for i in page_items:
+            if i.string == '>>':
+                addDir('Next Page', i['href'], 4, os.path.join(home, 'resources', 'next.png' ))
 
 
 def get_params():
@@ -122,12 +205,14 @@ def get_params():
         return param
 
 
-def addLink(name,url,iconimage):
+def addLink(name,url,desc,iconimage):
+        u=sys.argv[0]+"?url="+urllib.quote_plus(url)+"&mode=2&name="+urllib.quote_plus(name)
         ok=True
         liz=xbmcgui.ListItem(name, iconImage="DefaultVideo.png", thumbnailImage=iconimage)
-        liz.setInfo( type="Video", infoLabels={ "Title": name })
-        liz.setProperty( "Fanart_Image", fanart)
-        ok=xbmcplugin.addDirectoryItem(handle=int(sys.argv[1]),url=url,listitem=liz)
+        liz.setInfo(type="Video", infoLabels={"Title": name, "Plot": desc})
+        liz.setProperty("Fanart_Image", fanart)
+        liz.setProperty('IsPlayable', 'true')
+        ok=xbmcplugin.addDirectoryItem(handle=int(sys.argv[1]),url=u,listitem=liz)
         return ok
 
 
@@ -135,8 +220,8 @@ def addDir(name,url,mode,iconimage):
         u=sys.argv[0]+"?url="+urllib.quote_plus(url)+"&mode="+str(mode)+"&name="+urllib.quote_plus(name)
         ok=True
         liz=xbmcgui.ListItem(name, iconImage="DefaultFolder.png", thumbnailImage=iconimage)
-        liz.setInfo( type="Video", infoLabels={ "Title": name } )
-        liz.setProperty( "Fanart_Image", fanart)
+        liz.setInfo(type="Video", infoLabels={"Title": name})
+        liz.setProperty("Fanart_Image", fanart)
         ok=xbmcplugin.addDirectoryItem(handle=int(sys.argv[1]),url=u,listitem=liz,isFolder=True)
         return ok
 
@@ -168,19 +253,26 @@ if mode==None:
     Categories()
 
 elif mode==1:
-    print ""+url
+    print ""
     Index(url)
+    xbmcplugin.setContent(int(sys.argv[1]), 'episodes')
 
 elif mode==2:
     print ""+url
-    getVideos(url)
+    getVideos(url, name)
 
 elif mode==3:
     print ""
     mostWatched()
+    xbmcplugin.setContent(int(sys.argv[1]), 'episodes')
 
 elif mode==4:
     print ""
-    Search()
+    Search(url)
+    xbmcplugin.setContent(int(sys.argv[1]), 'episodes')
+
+elif mode==5:
+    print ""
+    getGenres()
 
 xbmcplugin.endOfDirectory(int(sys.argv[1]))
