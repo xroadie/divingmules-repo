@@ -1,3 +1,17 @@
+Version 0.3.8
+added support for IrcChat add-on
+added support for including a password when starting a stream from a plugin:// url
+fix ChineseTW language code
+
+Version 0.3.7.1
+fix encode error in logging
+fix prompt for password
+
+Version 0.3.7
+fix search, no longer available from the API, we now scrape the website function
+fix watch status for archives
+other bug fixes and code improvements
+
 Version 0.3.6
 fix error when selecting "All" catagory with XBMC-Frodo
 

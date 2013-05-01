@@ -15,5 +15,6 @@
     <summary>RaceBuddy</summary>
     <description>RaceBuddy, Live NASCAR Racing from the Speed Channel and Nascar.com      Note:  Some streams will immediately start buffering when the stream starts, when this happens, you will have to select play again. </description>
     <platform>all</platform>
+    <broken></broken>
   </extension>
 </addon>

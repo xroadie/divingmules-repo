@@ -14,5 +14,6 @@
     <summary>Videos from pgatour.com</summary>
     <description>Plays videos from The Professionl Golfers Association Tour website.</description>
     <platform>all</platform>
+    <broken>site is using HDS to stream videos</broken>
   </extension>
 </addon>
