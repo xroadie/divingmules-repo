@@ -1,111 +1,160 @@
-import urllib,urllib2,re,os
-import xbmcplugin,xbmcgui,xbmcaddon
+import urllib
+import urllib2
+import re
+import os
+import xbmcplugin
+import xbmcgui
+import xbmcaddon
+import xbmcvfs
+import StorageServer
 from BeautifulSoup import BeautifulSoup
 try:
     import json
 except:
     import simplejson as json
+from subprocess import Popen, PIPE, STDOUT
 
-__settings__ = xbmcaddon.Addon(id='plugin.video.pga.tour')
-__language__ = __settings__.getLocalizedString
-home = __settings__.getAddonInfo('path')
-icon = xbmc.translatePath( os.path.join( home, 'icon.png' ) )
-fanart = xbmc.translatePath( os.path.join( home, 'fanart.jpg' ) )
-fanart1 = xbmc.translatePath( os.path.join( home, 'resources/fanart1.jpg' ) )
+addon = xbmcaddon.Addon(id='plugin.video.pga.tour')
+home = xbmc.translatePath(addon.getAddonInfo('path'))
+icon = os.path.join( home, 'icon.png' )
+fanart = os.path.join( home, 'fanart.jpg' )
+fanart1 = os.path.join( home, 'resources/fanart1.jpg' )
+cache = StorageServer.StorageServer("pgatour", 24)
+cache.dbg = True
 
-headers = {'User-agent' : 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:6.0) Gecko/20100101 Firefox/6.0',
-           'Referer' : 'http://www.pgatour.com'}
+def make_request(url):
+        headers = {'User-agent' : 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:18.0) Gecko/20100101 Firefox/18.0',
+                   'Referer' : 'http://www.pgatour.com'}
+        try:
+            req = urllib2.Request(url,None,headers)
+            response = urllib2.urlopen(req)
+            data = response.read()
+            response.close()
+            return data
+        except urllib2.URLError, e:
+            print 'We failed to open "%s".' % url
+            if hasattr(e, 'reason'):
+                print 'We failed to reach a server.'
+                print 'Reason: ', e.reason
+            if hasattr(e, 'code'):
+                print 'We failed with error code - %s.' % e.code
+                
+                
+def get_homepage(url):
+        soup = BeautifulSoup(make_request(url), convertEntities=BeautifulSoup.HTML_ENTITIES)
+        homepage = {}
+        latest_videos = []
+        items = soup.find('div', attrs={'id': 'latest'}).ul('li')
+        for i in items:
+            href = i.a['href']
+            thumb = i.img['src']
+            title = i('span', attrs={'class': 'tourVidLatestPodTile'})[0].string
+            latest_videos.append((title, href, thumb))
+        homepage['latest_videos'] = latest_videos
+
+        categories = []
+        items = soup.find('div', attrs={'id': "tourVideoCategories"})('a')
+        for i in items:
+            href = i['href']
+            title = i.string
+            categories.append((title, href))
+        homepage['categories'] = categories
+        return homepage
+        
+        
+def cache_pgatour():
+        return get_homepage('http://www.pgatour.com/video.html')
+        
+def cache_championstour():
+        return get_homepage('http://www.pgatour.com/champions/video.html')
+        
+def cache_webtour():
+        return get_homepage('http://www.pgatour.com/webcom/video.html')
 
 def categories():
-        addPlaylist('Play Latest','',6,icon)
-        addDir('Highlights','',1,icon)
-        addDir('Features','',2,icon)
-        addDir('shows','',3,icon)
-        addDir('Instruction','',4,icon)
+        addDir('PGA Tour','cache_pgatour',1,icon)
+        addDir('Champions Tour','cache_championstour',1,icon)
+        addDir('WEB.com Tour','cache_webtour',1,icon)
         
         
-def highlights():
-        addDir('Top Shots','http://searchapp.pgatour.com/pgatour-search/query.jsp?text=*&type=enhanced&start=1&npp=10&s=all&tc=r&cat=highlights&chnl=mine&sort=date&isExpired=no&csiID=csi42',5,icon)
-        addDir('Morning Movers','http://searchapp.pgatour.com/pgatour-search/query.jsp?text=*&type=enhanced&start=1&npp=10&s=all&tc=r&cat=highlights&chnl=movers&sort=date&isExpired=no&csiID=csi41',5,icon)
-        addDir('Round Recaps','http://searchapp.pgatour.com/pgatour-search/query.jsp?text=*&type=enhanced&start=1&npp=10&s=all&tc=r&cat=highlights&chnl=highs&sort=date&isExpired=no&csiID=csi40',5,icon)
-        addDir('Shot of the Day','http://searchapp.pgatour.com/pgatour-search/query.jsp?text=*&type=enhanced&start=1&npp=10&s=all&tc=r&cat=highlights&chnl=sod&sort=date&isExpired=no&csiID=csi39',5,icon)
-        addDir('Shots of the Week','http://searchapp.pgatour.com/pgatour-search/query.jsp?text=*&type=enhanced&start=1&npp=10&s=all&tc=r&cat=highlights&chnl=sotw&sort=date&isExpired=no&csiID=csi38',5,icon)
-        addDir("Top 10's",'http://searchapp.pgatour.com/pgatour-search/query.jsp?text=*&type=enhanced&start=1&npp=10&s=all&tc=r&cat=highlights&chnl=top10&sort=date&isExpired=no&csiID=csi37',5,icon)
-        addDir('Player Interviews','http://searchapp.pgatour.com/pgatour-search/query.jsp?text=*&type=enhanced&start=1&npp=10&s=all&tc=r&cat=highlights&chnl=int&sort=date&isExpired=no&csiID=csi36',5,icon)
-        addDir('Memorable Moments','http://searchapp.pgatour.com/pgatour-search/query.jsp?text=*&type=enhanced&start=1&npp=10&s=all&tc=r&cat=highlights&chnl=memmom&sort=date&isExpired=no&csiID=csi35',5,icon)
-        addDir('FedExCup','http://searchapp.pgatour.com/pgatour-search/query.jsp?text=*&type=enhanced&start=1&npp=10&s=all&tc=r&cat=highlights&chnl=fec&sort=date&isExpired=no&csiID=csi34',5,'icon')
-        addDir('Kodak Challenge','http://searchapp.pgatour.com/pgatour-search/query.jsp?text=*&type=enhanced&start=1&npp=10&s=all&tc=r&cat=highlights&chnl=kodak&sort=date&isExpired=no&csiID=csi33',5,icon)
-
-        
-def features():
-        addDir('19th Hole','http://searchapp.pgatour.com/pgatour-search/query.jsp?text=*&type=enhanced&start=1&npp=10&s=all&tc=r&cat=features&chnl=clubhouse&sort=date&isExpired=no&csiID=csi31',5,icon)
-        addDir('Maginnes Uncut','http://searchapp.pgatour.com/pgatour-search/query.jsp?text=*&type=enhanced&start=1&npp=10&s=all&tc=r&cat=features&chnl=uncut&sort=date&isExpired=no&csiID=csi30',5,icon)
-        addDir('In the Bag','http://searchapp.pgatour.com/pgatour-search/query.jsp?text=*&type=enhanced&start=1&npp=10&s=all&tc=r&cat=features&chnl=itb&sort=date&isExpired=no&csiID=csi29',5,icon)
-        addDir('Outside the Ropes','http://searchapp.pgatour.com/pgatour-search/query.jsp?text=*&type=enhanced&start=1&npp=10&s=all&tc=r&cat=features&chnl=otr&sort=date&isExpired=no&csiID=csi28',5,icon)
-        addDir('Celebrity Spotlight','http://searchapp.pgatour.com/pgatour-search/query.jsp?text=*&type=enhanced&start=1&npp=10&s=all&tc=r&cat=features&chnl=celeb&sort=date&isExpired=no&csiID=csi27',5,icon)
-        addDir('Flyovers','http://searchapp.pgatour.com/pgatour-search/query.jsp?text=*&type=enhanced&start=1&npp=10&s=all&tc=r&cat=features&chnl=flyovers&sort=date&isExpired=no&csiID=csi26',5,icon)
-        addDir('SwingPlex','http://searchapp.pgatour.com/pgatour-search/query.jsp?text=*&type=enhanced&start=1&npp=10&s=all&tc=r&cat=features&chnl=swingplex&sort=date&isExpired=no&csiID=csi25',5,icon)
-        addDir('Charity','http://searchapp.pgatour.com/pgatour-search/query.jsp?text=*&type=enhanced&start=1&npp=10&s=all&tc=r&cat=features&chnl=charity&sort=date&isExpired=no&csiID=csi24',5,icon)
-        addDir('Commercials','http://searchapp.pgatour.com/pgatour-search/query.jsp?text=*&type=enhanced&start=1&npp=10&s=all&tc=r&cat=features&chnl=psa&sort=date&isExpired=no&csiID=csi23',5,icon)
-
-
-def shows():
-        addDir('INSIDE the PGA TOUR','http://searchapp.pgatour.com/pgatour-search/query.jsp?text=*&type=enhanced&start=1&npp=10&s=all&tc=r&cat=shows&chnl=inside&sort=date&isExpired=no&csiID=csi21',5,icon)
-        addDir('Match Play','http://searchapp.pgatour.com/pgatour-search/query.jsp?text=*&type=enhanced&start=1&npp=10&s=all&tc=r&cat=shows&chnl=matchplay&sort=date&isExpired=no&csiID=csi20',5,icon)
-        addDir('Fantasy Insider','http://searchapp.pgatour.com/pgatour-search/query.jsp?text=*&type=enhanced&start=1&npp=10&s=all&tc=r&cat=shows&chnl=fantasy&sort=date&isExpired=no&csiID=csi19',5,icon)
-        addDir('PGA TOUR Today','http://searchapp.pgatour.com/pgatour-search/query.jsp?text=*&type=enhanced&start=1&npp=10&s=all&tc=r&cat=shows&chnl=tt&sort=date&isExpired=no&csiID=csi18',5,icon)
-        addDir('Monday Backspin','http://searchapp.pgatour.com/pgatour-search/query.jsp?text=*&type=enhanced&start=1&npp=10&s=all&tc=r&cat=shows&chnl=backspin&sort=date&isExpired=no&csiID=csi17',5,icon)
-
-
-def instruction():
-        addDir('Swing Coaches','http://searchapp.pgatour.com/pgatour-search/query.jsp?text=*&type=enhanced&start=1&npp=10&s=all&tc=r&cat=instruction&chnl=coaches&sort=date&isExpired=no&csiID=csi15',5,icon)
-        addDir('Pro Tips','http://searchapp.pgatour.com/pgatour-search/query.jsp?text=*&type=enhanced&start=1&npp=10&s=all&tc=r&cat=instruction&chnl=protips&sort=date&isExpired=no&csiID=csi14',5,icon)
-        addDir('Pro Fitness','http://searchapp.pgatour.com/pgatour-search/query.jsp?text=*&type=enhanced&start=1&npp=10&s=all&tc=r&cat=instruction&chnl=depuy&sort=date&isExpired=no&csiID=csi13',5,icon)
-        addDir('Equipment','http://searchapp.pgatour.com/pgatour-search/query.jsp?text=*&type=enhanced&start=1&npp=10&s=all&tc=r&cat=instruction&chnl=barr%20&sort=date&isExpired=no&csiID=csi12',5,icon) 
-
-
-def playLatest():
-        url='http://www.pgatour.com/video/'
-        req = urllib2.Request(url,None,headers)
-        response = urllib2.urlopen(req)
-        link=response.read()
-        response.close()
-        soup = BeautifulSoup(link, convertEntities=BeautifulSoup.HTML_ENTITIES)
-        videos = soup.findAll('div', attrs={'id' : "latest"})[0]('ul')[0]('li')
-        playlist = xbmc.PlayList(1)
-        playlist.clear()
-        for video in videos:
-            name = video('a')[1]('span')[0].string
-            urlA = video('a')[0]['href']
-            thumb = video('img')[0]['src']
-            url = 'http://ht.cdn.turner.com/pgatour/big/video/pga-tour/'+urlA.split('/',4)[3]+'/'+urlA.split('/',5)[5].replace('/index.html','.ws.flv')
-            info = xbmcgui.ListItem(name, iconImage="DefaultVideo.png", thumbnailImage=thumb)
-            playlist.add(url, info)
-        play=xbmc.Player().play(playlist)            
+def subcategories(url):
+        addDir('Latest Videos', url, 3, icon)
+        cats = cache.cacheFunction(eval(url))
+        for i in cats['categories']:
+            addDir(i[0].title(), i[1], 2, icon)
+            
+            
+def get_channels(url):
+        json_url = 'http://www.pgatour.com/content/pgatour/video/jcr:content/mediaGallery.media.json?start=0&'
+        pattern = "javascript:searchByTags\('(.+?)','(.+?)'\)"
+        for tourId, catId in re.findall(pattern, url):
+            tourId = urllib.quote(tourId, safe='')
+            catId = urllib.quote(catId, safe='')
+            json_url += 'tourTagId=%s&categoryTagId=%s' %(tourId, catId)
+        data = json.loads(make_request(json_url))
+        for i in data['franchise']:
+            name = i['name']
+            chanId = i['id']
+            current = i['current']
+            chanUrl = json_url+'&channelTagId='+urllib.quote(chanId, safe='')
+            addDir(name, chanUrl, 3, icon)
             
 
-def getVideos(url):
-        req = urllib2.Request(url,None,headers)
-        response = urllib2.urlopen(req)
-        link=response.read()
-        response.close()
-        soup = BeautifulSoup(link)
-        data = json.loads(soup.textarea.contents[0])
-        videos = data['results'][0]
-        for video in videos:
-            name = video['title']
-            thumb = video['metadata']['media']['thumbnail']['url']
-            urlid = video['id']
-            desc = video['metadata']['media']['excerpt']
-            duration = video['metadata']['video']['length']
-            link = 'http://ht.cdn.turner.com/pgatour/big/'+urlid.split('/',2)[2]+'.ws.flv'
-            addLink(name,link,desc,thumb,duration)
-        if len(videos)==10:
-            start = re.compile('http://searchapp.pgatour.com/pgatour-search/.+?enhanced&start=(.+?)&npp=.+?').findall(url)
-            number = int(start[0])+10
-            a = str(number)
-            url = url.split('=',3)[0]+'='+url.split('=',3)[1]+'='+url.split('=',3)[2]+'='+a+'&'+url.split('&',3)[3]
-            addDir('Next Page',url,5,icon)
+def latest_videos(url):
+        tour = cache.cacheFunction(eval(url))
+        for i in tour['latest_videos']:
+            addLink(i[0].encode('utf-8'), i[1], '', i[2], '')
+            
+            
+def get_video(url):
+        data = make_request('http://www.pgatour.com/content/pgatour'+url)
+        pattern = "var videoPlayer = OO.Player.create\('.+?','(.+?)',"
+        try: video_id = re.findall(pattern, data)[0]
+        except:
+            print 'Did not find video ID'
+            return
+        manifest_url = 'http://pgaondemand-a.akamaihd.net/%s/%s_1.f4m' %(video_id, video_id)
+        print 'Manifest URL: '+manifest_url
+        target = 'php %s' %os.path.join(home, 'resources', 'AdobeHDS.php')
+        target += ' --manifest %s --delete --outdir %s --outfile pga.flv' %(manifest_url, os.path.join(home, 'resources'))
+        log = open(os.path.join(home, 'resources', 'AdobeHDS.log'), 'w')
+        p = Popen(target, shell=True, stdout=log, bufsize=-1)
+        p_dialog = xbmcgui.DialogProgress()
+        p_dialog.create('Getting Video', 'Please Wait')
+        play_file = os.path.join(home, 'resources', 'pga.flv')
+        xbmc.sleep(5000)
+        percent = 0
+        for i in range(10):
+            percent += 10
+            p_dialog.update(percent)
+            success = xbmcvfs.exists(play_file)
+            if success:
+                p_dialog.close()
+                xbmc.Player().play(play_file)
+                play_check(play_file)
+                break
+            else:
+                print 'Sleeping 5 seconds'
+                xbmc.sleep(5000)
+        if not success:
+            p_dialog.close()
+        
+        
+def play_check(play_file):
+        while (True):
+            play_file == get_file()
+            xbmc.sleep(1000)
+            if play_file != get_file():
+                print 'Breaking Loop!'
+                os.remove(play_file)
+                break
+
+def get_file():
+        try:
+            file_name = xbmc.Player().getPlayingFile()
+        except:
+            file_name = None
+        return file_name
         
         
 def get_params():
@@ -128,11 +177,13 @@ def get_params():
 
 
 def addLink(name,url,desc,thumb,duration):
+        u=sys.argv[0]+"?url="+urllib.quote_plus(url)+"&mode=4&name="+urllib.quote_plus(name)
         ok=True
         liz=xbmcgui.ListItem(name, iconImage="DefaultVideo.png", thumbnailImage=thumb)
         liz.setInfo( type="Video", infoLabels={ "Title": name, "Plot":desc, "Duration":duration} )
         liz.setProperty( "Fanart_Image", fanart1 )
-        ok=xbmcplugin.addDirectoryItem(handle=int(sys.argv[1]),url=url,listitem=liz)
+        # liz.setProperty('IsPlayable', 'true')
+        ok=xbmcplugin.addDirectoryItem(handle=int(sys.argv[1]),url=u,listitem=liz)
         return ok
 
 
@@ -184,19 +235,19 @@ if mode==None:
         
 if mode==1:
         print ""
-        highlights()
+        subcategories(url)
 
 if mode==2:
         print ""
-        features()
+        get_channels(url)
         
 if mode==3:
         print ""
-        shows()
+        latest_videos(url)
         
 if mode==4:
         print ""
-        instruction()
+        get_video(url)
         
 if mode==5:
         print ""
