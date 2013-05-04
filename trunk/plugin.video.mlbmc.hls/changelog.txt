@@ -1,5 +1,16 @@
+Version 0.1.0
+fix bug in settings
+fix canceling the select dialog
+fix bug in mlbtv_player script
+added setting, when using file in / file out, set a buffer size
+added more logging for inning start-time issues
+
+Version 0.0.9
+added mlbtv_player script
+added updating fprt cookie from xml data
+
 Version 0.0.8
-fix bug in mlb.tv listing
+updated to reflect the changes in the official add-on
 
 Version 0.0.7
 added option to show scores in game lists
