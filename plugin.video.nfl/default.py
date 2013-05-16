@@ -34,6 +34,7 @@ def categories():
         common.addDir('Events','',2,icon, fanart)
         common.addDir('Search','',14,xbmc.translatePath( os.path.join( home, 'resources','icons','search.png' ) ), fanart)
         common.addDir('Team Sites','',6,icon, fanart)
+        xbmcplugin.endOfDirectory(int(sys.argv[1]))
         		
 
 def teamSite():
@@ -41,6 +42,7 @@ def teamSite():
             if not common.teams_[i]['mode'] == '':
                 title = '%s %s' %(common.teams_[i]['city'], common.teams_[i]['nickname'])
                 common.addDir(title,'',common.teams_[i]['mode'],common.teams_[i]['thumb'],fanart)
+        xbmcplugin.endOfDirectory(int(sys.argv[1]))
 
 
 def getSubCategories(name):
@@ -126,6 +128,7 @@ def getSubCategories(name):
                 url = 'http://www.nfl.com/videos/'+title.replace('.','').replace(' ', '-').lower()
                 thumb = common.teams_[i]['thumb']
                 common.addDir(title, url, 1, thumb, fanart)
+        xbmcplugin.endOfDirectory(int(sys.argv[1]))
 
 
 def index(url,name):
@@ -153,6 +156,7 @@ def index(url,name):
                 common.addDir('Next Page','http://www.nfl.com/ajax/videos/v2?batchNum=1&channelId='+url.split('/')[-1].split('?')[0],5,next,fanart)
         except:
             pass
+        xbmcplugin.endOfDirectory(int(sys.argv[1]))
 
 
 def getPage3(url):
@@ -165,6 +169,7 @@ def getPage3(url):
             desc = video['captionBlurb']
             duration = video['runTime'][:-3]
             common.addLink(name,url,thumb,duration,desc,3,fanart)
+        xbmcplugin.endOfDirectory(int(sys.argv[1]))
 
 
 def getFeaturedVideos(url):
@@ -207,6 +212,7 @@ def search():
                 common.addLink(name,url,thumb,duration,desc,3,fanart)
             except:
                 pass
+        xbmcplugin.endOfDirectory(int(sys.argv[1]))
 
 
 def getVideoUrl(url):
@@ -359,192 +365,149 @@ if mode==None:
     categories()
 
 elif mode==1:
-    print ""+url
     index(url,name)
 
 elif mode==2:
-    print ""+url
     getSubCategories(name)
     xbmcplugin.addSortMethod(int(sys.argv[1]), xbmcplugin.SORT_METHOD_LABEL)
 
 elif mode==3:
-    print ""+url
     setUrl(url)
 
 elif mode==4:
-    print ""+url
     getFeaturedVideos(url)
 
 elif mode==5:
-    print ""+url
     getPage3(url)
 
 elif mode==6:
-    print ""
     teamSite()
     xbmcplugin.addSortMethod(int(sys.argv[1]), xbmcplugin.SORT_METHOD_LABEL)
 
 elif mode==7:
-    print ""
     common._index(url,fanart)
 
 elif mode==8:
-    print ""
     common._getVideoUrl(url)
 
 elif mode==9:
-    print ""
     teams.cardinals()
 
 elif mode==10:
-    print ""
     teams.bengals()
 
 elif mode==11:
-    print ""
     teams.buccaneers()
 
 elif mode==12:
-    print ""
     teams.browns()
 
 elif mode==13:
-    print ""
     teams.chargers()
 
 elif mode==14:
-    print ""
     search()
 
 elif mode==15:
-    print ""
+    pass
 
 elif mode==16:
-    print ""
+    pass
 
 elif mode==17:
-    print ""
+    pass
 
 elif mode==18:
-    print ""
     teams.lions()
 
 elif mode==19:
-    print ""
     teams.fortyniners()
 
 elif mode==20:
-    print ""
     teams.giants()
 
 elif mode==21:
-    print ""
     teams.texans()
 
 elif mode==22:
-    print ""
     teams.chiefs()
 
 elif mode==23:
-    print ""
     teams.jets()
 
 elif mode==24:
-    print ""
     teams.saints()
 
 elif mode==25:
-    print ""
     teams.packers()
 
 elif mode==26:
-    print ""
     teams.panthers()
 
 elif mode==27:
-    print ""
     teams.patriots()
 
 elif mode==28:
-    print ""
     teams.eagles()
 
 elif mode==29:
-    print ""
     teams.raiders()
 
 elif mode==30:
-    print ""
     teams.redskins()
 
 elif mode==31:
-    print ""
     teams.cowboys()
 
 elif mode==32:
-    print ""
     teams.rams()
 
 elif mode==33:
-    print ""
     teams.titans()
 
 elif mode==34:
-    print ""
     teams.vikings()
 
 elif mode==35:
-    print ""
     ravens._categories()
 
 elif mode==36:
-    print ""
     ravens._index(url)
 
 elif mode==37:
-    print ""
     teams.colts()
 
 elif mode==38:
-    print ""
     teams.dolphins()
 
 elif mode==39:
-    print ""
-
+    pass
 
 elif mode==40:
-    print ""
     bears._categories()
 
 elif mode==41:
-    print ""
     bears._index(url)
 
 elif mode==42:
-    print ""
     bears._getVideoUrl(url)
 
 elif mode==43:
-    print ""
     teams.broncos()
 
 elif mode==44:
-    print ""
     teams.steelers()
 
 elif mode==45:
-    print ""
     teams.jaguars()
 
 elif mode==46:
-    print ""
+    pass
 
 elif mode==47:
-    print ""
+    pass
 
 elif mode==48:
-    print ""
     teams.bills()
 
-xbmcplugin.endOfDirectory(int(sys.argv[1]))
+# xbmcplugin.endOfDirectory(int(sys.argv[1]))

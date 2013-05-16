@@ -15,6 +15,7 @@ def get_sub_categories(names, urlA, urlB, urlC, icon, fanart):
             else:
                 url = urlA+n[i]+urlB
             common.addDir(name, url, 7, icon, fanart)
+        xbmcplugin.endOfDirectory(int(sys.argv[1]))
 
 
 def bengals():
@@ -267,6 +268,7 @@ def seahawks():
         url = 'http://www.seahawks.com/cda-web/av-dynamic-browser-module.htm?adSlot=1&advertisingStartingPoint=1&channelKey=Seahawks%20Daily^Seahawks%20Insider^Seahawks%20All-Access^Press%20Conferences^News%20Releases^Highlights^Seahawks%201-on-1^Coach%27s%20Show^Seahawks%20on%20NFL.com^Community^Sea%20Gals^12th%20MAN%20Flag&channelName=Seahawks%20Daily^Seahawks%20Insider^Seahawks%20All-Access^Press%20Conferences^News%20Releases^Highlights^Seahawks%201-on-1^Coach%27s%20Show^Seahawks%20on%20NFL.com^Community^Sea%20Gals^12th%20MAN%20Flag%20Raisers&companionAdSize=300x60&dartAdvertisingZone1=medialounge&dartAdvertisingZone2=videos&numberOfRecordsPerPage=10&preRollAdSize=640x360&showByline=No&showChannel=Yes^Yes^Yes^Yes^Yes^Yes^Yes^Yes^Yes^Yes^Yes^Yes&showDescription=No&showDuration=Yes&showImage=Yes&showPublicationDate=Yes&showRecent=Yes&showTitle=Yes&sortField=DATE&type=VIDEO&currentChannelName=Recent&pageno=1'
         # url = 'http://www.seahawks.com/cda-web/content-list-dynamic-module-paginated.htm?previewMode=false&displayName=All%20Videos%20Archive&contentListType=internal&contentType=VIDEO&sortField=DATE&showRelatedToContent=No&relatedClubs=SEA&relatedToId=&showImage=Yes&showDescription=Yes&showByline=Yes&showPublicationDate=Yes&showRSS=No&showContentType=Yes&showFilterType=month&showPagination=Yes&showPagerStatus=Yes&showCount=Yes&showTitleStyle=Yes&view=content-list-variation-2&month=&year=&numberPerPage=7&pageno=1'
         common.addDir('All Videos',url,7,icon,fanart)
+        xbmcplugin.endOfDirectory(int(sys.argv[1]))
 
 
 def saints():
