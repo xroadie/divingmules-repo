@@ -98,6 +98,7 @@ def _index(url,fanart):
         page = int(url[-1])
         url = url[:-1]+str(page+1)
         addDir('Next Page',url,7,next,fanart)
+        xbmcplugin.endOfDirectory(int(sys.argv[1]))
 
 
 def _getVideoUrl(url):

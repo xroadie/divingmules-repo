@@ -31,6 +31,7 @@ def _categories():
         common.addDir('Regular Season','http://www.baltimoreravens.com/Media/Video_Landing.aspx?q=Regular+Season',36,icon,fanart)
         common.addDir('NFL Network','http://www.baltimoreravens.com/Media/Video_Landing.aspx?q=NFL+Network',36,icon,fanart)
         common.addDir('Rave TV','http://www.baltimoreravens.com/Media/Video_Landing.aspx?q=Rave+TV',36,icon,fanart)
+        xbmcplugin.endOfDirectory(int(sys.argv[1]))
         
         
 def _index(url):
@@ -47,4 +48,5 @@ def _index(url):
             thumb = video('img')[0]['src']
             url = thumb.replace('.tmb.jpg','.mp4')
             addLink(name,url,thumb)
+        xbmcplugin.endOfDirectory(int(sys.argv[1]))
             

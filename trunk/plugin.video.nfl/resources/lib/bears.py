@@ -27,6 +27,7 @@ def _categories():
         common.addDir('Staley','http://www.chicagobears.com/multimedia/StaleyArchives.asp',41,icon,fanart)
         common.addDir('Community','http://www.chicagobears.com/multimedia/CommunityArchives.asp',41,icon,fanart)
         common.addDir('CB Network','http://www.chicagobears.com/multimedia/CBNetworkArchive.asp',41,icon,fanart)
+        xbmcplugin.endOfDirectory(int(sys.argv[1]))
 
 
 def _index(url):
@@ -38,6 +39,7 @@ def _index(url):
             date = video('span')[0].string
             thumb = 'http://assets.chicagobears.com/uploads/multimedia/stills/teasers/'+url+'.jpg'
             common.addLink(name+' - '+date,url,thumb,'',date,42,fanart)
+        xbmcplugin.endOfDirectory(int(sys.argv[1]))
 
 
 def _getVideoUrl(url):
