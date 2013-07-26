@@ -478,6 +478,10 @@ def getItems(items,fanart):
                             regexs[i('name')[0].string]['refer'] = i('referer')[0].string
                         except:
                             addon_log("Regex: -- No Referer --")
+                        try:
+                            regexs[i('name')[0].string]['agent'] = i('agent')[0].string
+                        except:
+                            addon_log("Regex: -- No User Agent --")
                     regexs = urllib.quote(repr(regexs))
                 except:
                     regexs = None
@@ -515,6 +519,8 @@ def getRegexParsed(regexs, url):
                     req.add_header('User-Agent', 'Mozilla/5.0 (Windows NT 6.1; rv:14.0) Gecko/20100101 Firefox/14.0.1')
                     if 'refer' in m:
                         req.add_header('Referer', m['refer'])
+                    if 'agent' in m:
+                        req.add_header('User-agent', m['agent'])
                     response = urllib2.urlopen(req)
                     link = response.read()
                     response.close()
@@ -572,6 +578,11 @@ def getFavorites():
 
 def addFavorite(name,url,iconimage,fanart,mode,playlist=None,regexs=None):
         favList = []
+        try:
+            # seems that after 
+            name = name.encode('utf-8', 'ignore')
+        except:
+            pass
         if os.path.exists(favorites)==False:
             addon_log('Making Favorites File')
             favList.append((name,url,iconimage,fanart,mode,playlist,regexs))
@@ -653,7 +664,9 @@ def addDir(name,url,mode,iconimage,fanart,description,genre,date,credits,showcon
 
 
 def addLink(url,name,iconimage,fanart,description,genre,date,showcontext,playlist,regexs,total):
-        name = name.encode('utf-8')
+        try:
+            name = name.encode('utf-8')
+        except: pass
         ok = True
         if regexs: mode = '17'
         else: mode = '12'
