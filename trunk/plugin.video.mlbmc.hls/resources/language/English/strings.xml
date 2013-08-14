@@ -11,10 +11,10 @@
   <string id="30007">MLB.com Podcasts</string>
   <string id="30008">MLB.com Realtime Highlights</string>
   <string id="30009">Search</string>
-  <string id="30010"></string>
-  <string id="30011"></string>
-  <string id="30012"></string>
-  <string id="30013"></string>
+  <string id="30010">Teams</string>
+  <string id="30011">Browse all Categories</string>
+  <string id="30012">Current Player Roster</string>
+  <string id="30013">Latest Highlights</string>
   <string id="30014"></string>
   <!-- game calander -->
   <string id="30015">Older Dates</string>
@@ -37,7 +37,7 @@
   <string id='30030'>  Free Game OF The Day</string>
   <string id='30031'>Blackout</string>
   <string id='30032'>Preview Video - </string>
-  <string id='30033'>Select Your Coverage</string>
+  <string id='30033'></string>
   <string id='30034'>Next Page</string>
   <!-- notifications -->
   <string id='30035'>MLBMC</string>

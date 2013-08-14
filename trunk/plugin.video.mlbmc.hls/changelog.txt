@@ -1,3 +1,23 @@
+Version 0.1.5
+fix full count, mlb.com playlist
+added "start block" setting as a workaround for when games don't start at the correct time
+
+Version 0.1.4
+fixes for Windows
+
+Version 0.1.3
+fix for website changes
+added setting: "Locate your mlbhls executable" this can be left blank if it is in your $PATH
+added initial support for Windows, thanks to speaker219 for the mlbhls-win32 build
+
+Version 0.1.2
+fix for website changes
+
+Version 0.1.1
+fix mlbtv_player script, bugs with openelec
+fix error handling bug
+added a live option to the list of inning times
+
 Version 0.1.0
 fix bug in settings
 fix canceling the select dialog

@@ -1,5 +1,33 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <addons>
+<addon id="plugin.audio.iheart"
+       name="iHeartRadio"
+       version="0.0.1"
+       provider-name="divingmule">
+  <requires>
+    <import addon="xbmc.python" version="2.1.0"/>
+    <import addon="script.module.beautifulsoup" version="3.2.0"/>
+    <import addon="script.common.plugin.cache" version="2.5.1"/>
+  </requires>
+  <extension point="xbmc.python.pluginsource" library="default.py">
+    <provides>audio</provides>
+  </extension>
+  <extension point="xbmc.addon.metadata">
+    <summary>Live radio over the internet</summary>
+    <description>
+    Listen to more than 1,500 live radio stations from coast-to-coast including pop, country, urban, rock, talk, and college.[CR]
+    Browse radio stations by music genre and location.[CR]
+    Read more: http://news.iheart.com/about/
+    </description>
+    <platform>all</platform>
+    <language>en</language>
+    <license>GNU GENERAL PUBLIC LICENSE. Version 2, June 1991</license>
+    <disclaimer>Seems only available with a U.S. IP</disclaimer>
+    <source></source>
+    <forum></forum>
+  </extension>
+</addon>
+
 <addon id="plugin.audio.noagenda"
        name="No Agenda"
        version="0.0.2"
@@ -144,11 +172,12 @@
 
 <addon id="plugin.video.mlbmc.hls"
        name="MLBMC(mlb-hls)"
-       version="0.1.0"
+       version="0.1.5"
        provider-name="divingmule">
   <requires>
     <import addon="xbmc.python" version="2.0"/>
-    <import addon="script.module.beautifulsoup" version="3.0.8"/>
+    <import addon="script.module.beautifulsoup" version="3.2.0"/>
+    <import addon="script.common.plugin.cache" version="2.5.1"/>
   </requires>
   <extension point="xbmc.python.pluginsource" library="default.py">
     <provides>video</provides>
@@ -159,7 +188,7 @@
       Video highlights from MLB.com. MLb.tv subscribers can watch the live and archived games.
       Usually there is a free game of the day witch only requires a mlb.com account.
     </description>
-    <disclaimer>This add-on will only work on Linux.</disclaimer>
+    <disclaimer>This add-on requires thegrayghost's MLBTV-HLS client. http://code.google.com/p/mlbtv-hls-nexdef/</disclaimer>
     <platform>all</platform>
   </extension>
 </addon>
