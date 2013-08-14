@@ -13,6 +13,7 @@ from mlb_common import TeamCodes, addon_log, coloring, getRequest
 from BeautifulSoup import BeautifulStoneSoup, BeautifulSoup
 from subprocess import Popen, PIPE, STDOUT
 import tempfile
+import platform
 
 addon = xbmcaddon.Addon(id='plugin.video.mlbmc.hls')
 profile = xbmc.translatePath(addon.getAddonInfo('profile'))
@@ -23,6 +24,7 @@ cookie_file = os.path.join(profile, 'cookie_file')
 cookie_jar = cookielib.LWPCookieJar(cookie_file)
 debug = addon.getSetting('debug')
 fanart1 = 'http://mlbmc-xbmc.googlecode.com/svn/icons/fanart1.jpg'
+system_os = platform.system()
 
 SOAPCODES = {
     "1"    : "OK",
@@ -65,7 +67,10 @@ def mlb_login():
         addon_log( "Logged in successfully!" )
     except:
         addon_log("Login Failed!")
-        addon_log(login)
+        try:
+            soup = BeautifulSoup(login)
+            addon_log(str(soup.head.title))
+        except: pass
         xbmc.executebuiltin("XBMC.Notification("+language(30035)+","+language(30042)+",5000,"+icon+")")
 
     if cookies.has_key('ipid') and cookies.has_key('fprt'):
@@ -134,9 +139,13 @@ def mlbGame(event_id, full_count=False):
     soup = BeautifulStoneSoup(data)
     status = soup.find('status-code').string
     if status != "1":
-        error_str = SOAPCODES[status]
+        try:
+            error_str = SOAPCODES[status]
+        except:
+            error_str = 'Unknown Error'
+        addon_log(error_str)
         if not full_count:
-            if login == old and error_str == 'Identity Error':
+            if login == 'old':
                 cookie_jar.clear()
                 login = mlb_login()
             if not login:
@@ -185,9 +194,9 @@ def mlbGame(event_id, full_count=False):
                 
     event_id = soup.find('event-id').string
     items = soup.findAll('user-verified-content')
-    verified_content = []
-    name_list = []
+    verified_content = {'video': [], 'audio': []}
     for item in items:
+        audio = False
         if item.state.string == 'MEDIA_ARCHIVE':
             if not addon.getSetting('hls') == 'true':
                 if int(event_id.split('-')[2]) < 2012:
@@ -208,7 +217,7 @@ def mlbGame(event_id, full_count=False):
         if full_count:
             name = 'full_count'
             session = ''
-            return getGameURL(name,event_id,content_id,session,None,None,scenario,True)
+            return getGameURL(name,event_id,content_id,session,None,None,scenario,True,None)
         else:
             blackout_status = item('blackout-status')[0]
             try:
@@ -234,6 +243,7 @@ def mlbGame(event_id, full_count=False):
                 name = coverage+' '+call_letters+' '+blackout
 
             if item.type.string == 'audio':
+                audio = True
                 name += ' Gameday Audio'
                 scenario = 'AUDIO_FMS_32K'
 
@@ -248,18 +258,28 @@ def mlbGame(event_id, full_count=False):
                 if Innings:
                     if addon.getSetting('lookup_innings') == 'true':
                         start = innings_url
-                verified_content.append((name,event_id,content_id,session,cookies['ipid'],cookies['fprt'],scenario,live,start))
-                name_list.append(name)
+                if audio:
+                    verified_content['audio'].append((name,event_id,content_id,session,cookies['ipid'],cookies['fprt'],scenario,live,start))
+                else:
+                    verified_content['video'].append((name,event_id,content_id,session,cookies['ipid'],cookies['fprt'],scenario,live,start))
+
+    index = 0
+    name_list = []
+    sorted_content = {}
+    for i in verified_content['video'] + verified_content['audio']:
+        sorted_content[index] = i
+        name_list.append(i[0])
+        index += 1
 
     dialog = xbmcgui.Dialog()
     ret = dialog.select(language(30033), name_list)
     if ret >= 0:
         addon_log('Selected: %s' %name_list[ret])
-        addon_log('content: %s' %verified_content[ret][0])
+        addon_log('content: %s' %sorted_content[ret][0])
         if addon.getSetting('lookup_innings') == 'true':
-            getInnings(*verified_content[ret])
+            getInnings(*sorted_content[ret])
         else:
-            getGameURL(*verified_content[ret])
+            getGameURL(*sorted_content[ret])
 
 
 def getGameURL(name,event,content,session,cookieIp,cookieFp,scenario,live,start):
@@ -269,6 +289,11 @@ def getGameURL(name,event,content,session,cookieIp,cookieFp,scenario,live,start)
     else:
         subject = 'LIVE_EVENT_COVERAGE'
         url = 'https://secure.mlb.com/pubajaxws/bamrest/MediaService2_0/op-findUserVerifiedEvent/v-2.1?'
+    
+    try:
+        cookieFp = urllib.unquote(cookieFp)
+    except AttributeError:
+        pass
     values = {
         'subject': subject,
         'sessionKey': session,
@@ -387,14 +412,14 @@ def getGameURL(name,event,content,session,cookieIp,cookieFp,scenario,live,start)
                 except OSError, e:
                     addon_log( "Failed to create FIFO: %s" % e )
 
-            os_name = os.uname()
-            if os_name[1] == 'openelec':
-                if os_name[-1] == 'x86_64':
-                    target = os.path.join(home, 'resources', 'mlbhls', 'openelec-mlbhls', 'x86_64', 'mlbhls')
-                else:
-                    target = os.path.join(home, 'resources', 'mlbhls', 'openelec-mlbhls', 'i386', 'mlbhls')
+            
+            if len(addon.getSetting('mlbhls')) > 1:
+                target = addon.getSetting('mlbhls')
             else:
-                target = 'mlbhls'
+                if system_os == 'Windows':
+                    target = os.path.join(home, 'resources', 'mlbhls', 'mlbhls_win32', 'mlbhls.exe')
+                else:
+                    target = 'mlbhls'
 
             target += ' -B '+game_url+' -o '+filename
 
@@ -444,49 +469,24 @@ def getGameURL(name,event,content,session,cookieIp,cookieFp,scenario,live,start)
                     '11':' 100'
                     }
                 start_block = addon.getSetting('hls_start_block')
-            if not start is None:
+            if start != '' and start is not None:
                 target += ' -F ' + start
-            elif live or (addon.getSetting('hls_start_time') == 'false'):
-                target += ' -f 0'#+start_values[start_block]
+            elif live and addon.getSetting('hls_start_time') == 'false':
+                target += ' -f 0'
+            elif addon.getSetting('hls_start_time') == 'false' and addon.getSetting('lookup_innings') == 'false':
+                target += ' -f' + start_values[start_block]
             elif not name == 'full_count':
                 if (not live) or (addon.getSetting('hls_start_time') == 'true'):
                     try:
                         start_time = getStartTime(innings_url, 'start')
                         target += ' -F ' + start_time
                     except:
-                        addon_log( 'getStartTime exception' )
+                        addon_log('getStartTime exception')
                         target += ' -f 50'
 
             addon_log( 'Target: '+target )
-            hls_log = open(os.path.join(profile, 'hls.log'), 'w')
-            size_values = {
-                '0': -1,
-                '1': 0,
-                '2': 4096,
-                '3': 8192,
-                '4': 12288,
-                '5': 16384,
-                '6': 20480,
-                '7': 24576
-                }
-            if addon.getSetting('fifo') == 'true':
-                buf_size = size_values[addon.getSetting('buf_size')]
-                addon_log('Bufer Size: %s' %buf_size)
-            else:
-                buf_size = -1
-            process = Popen(target, shell=True, stdout=hls_log, bufsize=buf_size).stdout
-            if addon.getSetting('fifo') == 'false':
-                hls_wait = int(addon.getSetting('hls_wait')+'000')
-                if hls_wait >= 5000:
-                    xbmc.executebuiltin("XBMC.Notification("+language(30035)+
-                                        ",Caching for "+addon.getSetting('hls_wait')+
-                                        " Seconds,"+str(hls_wait - 1000)+","+icon+")")
-                else: hls_wait = 4000
-                xbmc.sleep(hls_wait)
             script = os.path.join(home, 'resources', 'mlbtv_player.py')
-            
-            return xbmc.executebuiltin("XBMC.RunScript(%s, %s, %s, %s)" %(script, filename, tmpdir, event))
-            
+            return xbmc.executebuiltin("XBMC.RunScript(%s, %s, %s, %s, %s)" %(script, filename, tmpdir, event, target))
 
 
         elif game_url.startswith('rtmp'):
@@ -538,7 +538,7 @@ def getStartTime(url, start=False):
     else:
         innings_list = []
         if start_time:
-            inning = ('Start of the broadcast.', start_time, start_time)
+            inning = ('Start', start_time, start_time)
             innings_list.append(inning)
         items = soup('inningtimes')
         for i in items:
@@ -572,13 +572,19 @@ def getInnings(name,event,content,session,cookieIp,cookieFp,scenario,live,start)
         start_list = []
         name_list = []
         for i in innings_list:
-            inning_name = 'Inning '+i[0]
+            if i[0] == 'Start':
+                inning_name = 'Start of broadcast'
+            else:
+                inning_name = 'Inning '+i[0]
             if scenario != "HTTP_CLOUD_WIRED_WEB":
                 start = i[2]
             else:
                 start = i[1]
             start_list.append(start)
             name_list.append(inning_name)
+        if live:
+            start_list.append('')
+            name_list.append('Live')
         dialog = xbmcgui.Dialog()
         ret = dialog.select('Select an inning.', name_list)
         if ret >= 0:

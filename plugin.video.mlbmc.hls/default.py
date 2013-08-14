@@ -113,7 +113,7 @@ if mode==1:
 
 if mode==2:
     if podcasts:
-        mlb.setVideoURL(url,True)
+        mlb.setVideoURL(url, True)
     else:
         mlb.setVideoURL(url)
 
@@ -206,7 +206,8 @@ if mode==23:
     xbmcplugin.endOfDirectory(int(sys.argv[1]))
 
 if mode==24:
-    pass
+    mlb.get_topic_playlist(url, eval(game_type))
+    xbmcplugin.endOfDirectory(int(sys.argv[1]))
 
 if mode==25:
     mlbtv.mlbGame(event, True)
@@ -219,3 +220,14 @@ if mode==26:
 if mode==27:
     mlb.getRealtimeVideo(url)
     xbmcplugin.endOfDirectory(int(sys.argv[1]))
+
+if mode==28:
+    mlb.get_playlist_cats(False, url)
+    xbmcplugin.endOfDirectory(int(sys.argv[1]))
+
+if mode==29:
+    mlb.get_playlist_cats(True, url)
+    xbmcplugin.endOfDirectory(int(sys.argv[1]))
+
+if mode==30:
+    pass

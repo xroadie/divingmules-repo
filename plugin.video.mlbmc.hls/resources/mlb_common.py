@@ -17,6 +17,7 @@ cookie_file = os.path.join(profile, 'cookie_file')
 fanart = os.path.join(home, 'fanart.jpg')
 fanart1 = 'http://mlbmc-xbmc.googlecode.com/svn/icons/fanart1.jpg'
 fanart2 = 'http://mlbmc-xbmc.googlecode.com/svn/icons/fanart2.jpg'
+icon = os.path.join(home, 'icon.png')
 addon_version = addon.getAddonInfo('version')
 debug = addon.getSetting('debug')
 cookie_jar = cookielib.LWPCookieJar(cookie_file)
@@ -57,7 +58,7 @@ TeamCodes = {
 
 def addon_log(string):
     if debug == 'true':
-        xbmc.log("[MLBMC-%s]: %s" %(addon_version, string))
+        xbmc.log("[MLBMC(mlbhls)-%s]: %s" %(addon_version, string))
 
 
 def getRequest(url, data=None, headers=None):
@@ -113,9 +114,8 @@ def getLengthInMinutes(length):
 
 def addLink(name,url,duration,mode,iconimage,plot='',podcasts=False):
     u=sys.argv[0]+"?url="+urllib.quote_plus(url)+"&mode="+str(mode)+"&name="+urllib.quote_plus(name)+"&podcasts="+str(podcasts)
-    if addon_version.startswith('2'):
-        if ':' in duration:
-            duration = getLengthInMinutes(duration)
+    if ':' in duration:
+        duration = getLengthInMinutes(duration)
     liz=xbmcgui.ListItem(name, iconImage="DefaultVideo.png", thumbnailImage=iconimage)
     liz.setInfo( type="Video", infoLabels={ "Title": name, "duration": duration, "plot": plot } )
     liz.setProperty('IsPlayable', 'true')
