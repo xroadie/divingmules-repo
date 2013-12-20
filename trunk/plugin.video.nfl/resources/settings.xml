@@ -1,6 +1,0 @@
-<settings>
-  <category label="NFL.com - Playback Quality">
-    <setting id="bitrate" type="select" label="Bitrate (anything other than 700k is bugged)" values="700k|1200k|2000k|3200k" default="700k"/>
-    <setting id="cdn" type="select" label="Preferred CDN" values="akamai-HTTP|limelightProg-HTTP 700k only|limelight-RTMP 700k only" default="limelightProg-HTTP 700k only"/>
-  </category>
-</settings>
