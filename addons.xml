@@ -68,20 +68,26 @@
 
 <addon id="plugin.video.atk"
        name="Americas Test Kitchen"
-       version="0.0.3"
+       version="0.0.6"
        provider-name="divingmule">
   <requires>
-    <import addon="xbmc.python" version="1.0"/>
-	<import addon="script.module.beautifulsoup" version="3.0.8"/>
+    <import addon="xbmc.python" version="2.1.0"/>
+    <import addon="script.module.beautifulsoup4" version="4.3.1"/>
+    <import addon="script.module.xmltodict" version="0.7.0"/>
+    <import addon="script.common.plugin.cache" version="2.5.2"/>
   </requires>
-  <extension point="xbmc.python.pluginsource"
-            library="default.py">
-        <provides>video</provides>
+  <extension point="xbmc.python.pluginsource" library="default.py">
+    <provides>video</provides>
   </extension>
   <extension point="xbmc.addon.metadata">
     <summary>Americas Test Kitchen.com</summary>
-    <description>Cooking shows from the Americas Test Kitchen.com</description>
+    <description>Cooking shows and videos from the Americas Test Kitchen, Cooks Country, Cooks Illustrated</description>
+    <disclaimer>Generally only the current season of shows are available without a subscription</disclaimer>
     <platform>all</platform>
+    <language>en</language>
+    <license>GNU GENERAL PUBLIC LICENSE. Version 2, June 1991</license>
+    <source>https://github.com/divingmule/plugin.video.atk</source>
+    <forum>http://forum.xbmc.org/showthread.php?tid=177585</forum>
   </extension>
 </addon>
 
@@ -106,13 +112,12 @@
 
 <addon id="plugin.video.jtv.archives"
        name="Jtv"
-       version="0.3.8"
+       version="0.3.9"
        provider-name="divingmule">
   <requires>
-    <import addon="xbmc.python" version="2.0"/>
-    <import addon="script.common.plugin.cache" version="1.0.0"/>
-    <import addon="script.module.simplejson" optional="true" />
-    <import addon="script.module.beautifulsoup" version="3.0.8"/>
+    <import addon="xbmc.python" version="2.1.0"/>
+    <import addon="script.common.plugin.cache" version="2.5.2"/>
+    <import addon="script.module.beautifulsoup" version="3.2.1"/>
     <import addon="script.ircchat" version="1.0.0"  optional="true" />
   </requires>
   <extension point="xbmc.python.pluginsource" library="default.py">
@@ -123,6 +128,10 @@
     <description>Watch live and archived videos from justin.tv</description>
     <platform>all</platform>
     <language></language>
+    <license>GNU GENERAL PUBLIC LICENSE. Version 2, June 1991</license>
+    <source></source>
+    <forum>http://forum.xbmc.org/showthread.php?tid=51981</forum>
+    <website>http://justin.tv</website>
   </extension>
 </addon>
 
@@ -193,26 +202,6 @@
   </extension>
 </addon>
 
-<addon id="plugin.video.nfl"
-       name="NFL.com"
-       version="1.0.7"
-       provider-name="divingmule">
-  <requires>
-    <import addon="xbmc.python" version="2.0"/>
-    <import addon="script.module.simplejson"/>
-	<import addon="script.module.beautifulsoup" version="3.0.8"/>
-  </requires>
-  <extension point="xbmc.python.pluginsource"
-            library="default.py">
-        <provides>video</provides>
-  </extension>
-  <extension point="xbmc.addon.metadata">
-    <summary>Videos from nfl.com.</summary>
-    <description>Video highlights from National Football League.com.</description>
-    <platform>all</platform>
-  </extension>
-</addon>
-
 <addon id="plugin.video.pga.tour"
        name="PGA-Tour.com"
        version="0.0.1"
@@ -229,46 +218,6 @@
     <description>Plays videos from The Professionl Golfers Association Tour website.</description>
     <platform>all</platform>
     <broken>site is using HDS to stream videos</broken>
-  </extension>
-</addon>
-
-<addon id="plugin.video.racebuddy"
-       name="RaceBuddy"
-       version="0.0.3"
-       provider-name="divingmule">
-  <requires>
-    <import addon="xbmc.python" version="1.0"/>
-    <import addon="script.module.beautifulsoup" version="3.0.8"/>
-  </requires>
-  <extension point="xbmc.python.pluginsource"
-            library="default.py">
-        <provides>video</provides>
-  </extension>
-  <extension point="xbmc.addon.metadata">
-    <summary>RaceBuddy</summary>
-    <description>RaceBuddy, Live NASCAR Racing from the Speed Channel and Nascar.com      Note:  Some streams will immediately start buffering when the stream starts, when this happens, you will have to select play again. </description>
-    <platform>all</platform>
-    <broken></broken>
-  </extension>
-</addon>
-
-<addon id="plugin.video.steam"
-       name="Steam"
-       version="0.0.2"
-       provider-name="divingmule">
-  <requires>
-    <import addon="xbmc.python" version="2.0"/>
-    <import addon="script.module.beautifulsoup" version="3.2.0"/>
-    <import addon="script.common.plugin.cache" version="1.5.1"/>
-  </requires>
-  <extension point="xbmc.python.pluginsource" library="default.py">
-    <provides>video</provides>
-  </extension>
-  <extension point="xbmc.addon.metadata">
-    <summary>Game videos from Steam</summary>
-    <description>Videos from SteamPowered.com</description>
-    <platform>all</platform>
-    <language>en</language>
   </extension>
 </addon>
 
