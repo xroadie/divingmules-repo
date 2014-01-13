@@ -3,1018 +3,768 @@
 
 import urllib
 import urllib2
-import re
 import os
+from urlparse import urlparse, parse_qs
+
+import StorageServer
+import json
+
 import xbmcplugin
 import xbmcgui
 import xbmcaddon
 import xbmcvfs
-import StorageServer
-import json
-from BeautifulSoup import BeautifulSoup
 
-addon = xbmcaddon.Addon('plugin.video.jtv.archives')
+addon = xbmcaddon.Addon()
+addon_id = addon.getAddonInfo('id')
 addon_version = addon.getAddonInfo('version')
-profile = xbmc.translatePath(addon.getAddonInfo('profile'))
-home = xbmc.translatePath(addon.getAddonInfo('path'))
-ICON = os.path.join(home, 'icon.png')
-fanart = os.path.join(home, 'fanart.jpg')
-next_png = os.path.join(home, 'resources', 'icons','next.png')
-debug = addon.getSetting('debug')
+addon_profile = xbmc.translatePath(addon.getAddonInfo('profile')).encode('utf-8')
+addon_path = xbmc.translatePath(addon.getAddonInfo('path')).encode('utf-8')
+addon_icon = addon.getAddonInfo('icon')
+addon_fanart = addon.getAddonInfo('fanart')
 j_nick = addon.getSetting('nickname')
 j_pass = addon.getSetting('password')
 cache = StorageServer.StorageServer("Jtv_Archives", 24)
-profile_dir = xbmcvfs.exists(profile)
-if not profile_dir:
-    profile_dir = xbmcvfs.mkdir(profile)
-search_queries = os.path.join(profile, 'search_queries')
-passwords_file = os.path.join(profile, 'passwords')
-blacklist = os.path.join(profile, 'blacklist')
-favorites = os.path.join(profile, 'favorites')
-try:
-    FAV = open(favorites).read()
-except:
-    FAV = None
-try:
-    SEARCH_LIST = open(search_queries).read()
-except:
-    SEARCH_LIST = None
-try:
-    BLACKLIST = json.loads(open(blacklist).read())
-except:
-    BLACKLIST = ''
-if debug == 'true':
-    cache.dbg = True
+search_queries = os.path.join(addon_profile, 'search_queries')
+passwords_file = os.path.join(addon_profile, 'passwords')
+blacklist_file = os.path.join(addon_profile, 'blacklist')
+favorites_file = os.path.join(addon_profile, 'favorites')
+api_url = 'http://api.justin.tv/api'
 
-LANGUAGES = {
-    "sq" : "Albanian",
-    "ar" : "Arabic",
-    "hy" : "Belarusian",
-    "bs" : "Bosnian",
-    "bg" : "Bulgarian",
-    "ca" : "Catalan",
-    "zh" : "Chinese",
-    "zh-tw" : "ChineseTW",
-    "tl" : "Tagalog",
-    "hr" : "Croatian",
-    "cs" : "Czech",
-    "da" : "Danish",
-    "nl" : "Dutch",
-    "en" : "English",
-    "et" : "Estonian",
-    "fa" : "Persian",
-    "fi" : "Finnish",
-    "fr" : "French",
-    "de" : "German",
-    "el" : "Greek",
-    "he" : "Hebrew",
-    "iw" : "Hebrew",
-    "hi" : "Hindi",
-    "hu" : "Hungarian",
-    "is" : "Icelandic",
-    "id" : "Indonesian",
-    "it" : "Italian",
-    "ja" : "Japanese",
-    "ko" : "Korean",
-    "lv" : "Latvian",
-    "lt" : "Lithuanian",
-    "mk" : "Macedonian",
-    "no" : "Norwegian",
-    "pl" : "Polish",
-    "pt" : "Portuguese",
-    "pt-br" : "PortugueseBrazil",
-    "ro" : "Romanian",
-    "ru" : "Russian",
-    "sr" : "Serbian",
-    "sk" : "Slovak",
-    "sl" : "Slovenian",
-    "es" : "Spanish",
-    "sv" : "Swedish",
-    "th" : "Thai",
-    "tr" : "Turkish",
-    "uk" : "Ukrainian",
-    "vi" : "Vietnamese",
-    "fa" : "Farsi",
-    "pb" : "Portuguese",
-    "pb" : "Brazilian"
+languages = {
+    'Swedish': 'sv',
+    'Icelandic': 'is',
+    'Estonian': 'et',
+    'Vietnamese': 'vi',
+    'Romanian': 'ro',
+    'Slovenian': 'sl',
+    'Hindi': 'hi',
+    'Dutch': 'nl',
+    'Korean': 'ko',
+    'Danish': 'da',
+    'Indonesian': 'id',
+    'Hungarian': 'hu',
+    'Ukrainian': 'uk',
+    'Lithuanian': 'lt',
+    'French': 'fr',
+    'Catalan': 'ca',
+    'Russian': 'ru',
+    'Thai': 'th',
+    'Croatian': 'hr',
+    'ç®€ä½“ä¸­æ–‡': 'zh-cn',
+    'Finnish': 'fi',
+    'Hebrew': 'he',
+    'Bulgarian': 'bg',
+    'Turkish': 'tr',
+    'Greek': 'el',
+    'Latvian': 'lv',
+    'English': 'en',
+    'PortugueseBrazil': 'pt-br',
+    'Italian': 'it',
+    'Portuguese': 'pt',
+    'ChineseTW': 'zh-tw',
+    'German': 'de',
+    'Japanese': 'ja',
+    'Norsk (BokmÃ¥l)': 'nb',
+    'Czech': 'cs',
+    'Slovak': 'sk',
+    'Spanish': 'es',
+    'Polish': 'pl',
+    'Arabic': 'ar',
+    'Tagalog': 'tl'
     }
 
-
 def addon_log(string):
-        if debug == 'true':
-            xbmc.log("[addon.Jtv-%s]: %s" %(addon_version, string.encode('utf-8', 'ignore')))
+    try:
+        log_message = string.encode('utf-8', 'ignore')
+    except:
+        log_message = 'addonException: addon_log: %s' %format_exc()
+    xbmc.log("[%s-%s]: %s" %(addon_id, addon_version, log_message), level=xbmc.LOGNOTICE)
 
 
-def get_request(url, headers=None, get_url=False):
-        addon_log('Request: '+url)
-        try:
-            if headers is None:
-                headers = {'User-agent' : 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:19.0) Gecko/20100101 Firefox/19.0',
-                           'Referer' : 'http://www.justin.tv/'}
-            req = urllib2.Request(url,None,headers)
-            response = urllib2.urlopen(req)
-            if get_url:
-                data = response.geturl()
+def make_request(url, headers=None, get_url=False):
+    addon_log('Request: '+url)
+    if headers is None:
+        headers = {
+            'User-agent' : 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:26.0) Gecko/20100101 Firefox/26.0',
+            'Referer' : 'http://www.justin.tv/'
+            }
+    try:
+        req = urllib2.Request(url,None,headers)
+        response = urllib2.urlopen(req)
+        if get_url:
+            data = response.geturl()
+        else:
+            data = response.read()
+        # addon_log(str(response.info()))
+        response.close()
+        return data
+    except urllib2.URLError, e:
+        data = None
+        errorStr = str(e.read())
+        addon_log('We failed to open "%s".' %url)
+        if hasattr(e, 'reason'):
+            addon_log('We failed to reach a server.')
+            addon_log('Reason: %s' %e.reason)
+        if hasattr(e, 'code'):
+            addon_log('We failed with error code - %s.' %e.code)
+
+
+def get_lang_code(language):
+    for i in LANGUAGES.items():
+        if i[1] == language:
+            lang_code = i[0]
+            return lang_code
+
+
+def get_category_list():
+    return make_request(api_url + '/category/list.json')
+
+
+def display_main_dir():
+    all_icon = os.path.join(addon_path, 'resources', 'icons','all.png')
+    fav_icon = os.path.join(addon_path, 'resources', 'icons','fav.png')
+    jfav_icon = os.path.join(addon_path, 'resources', 'icons','jfav.png')
+    search_icon = os.path.join(addon_path, 'resources', 'icons', 'search.png')
+    if xbmcvfs.exists(favorites_file):
+        favorites_list = open(favorites_file).read()
+        if favorites_list:
+            add_dir('Favorites', 'get_favorites', fav_icon, 'get_favorites')
+    justin_user_name = addon.getSetting('j_user')
+    if justin_user_name:
+        add_dir('%s Favorites / Follows' %justin_user_name, justin_user_name, jfav_icon, 'get_justin_favorites')
+    add_dir('All', '', all_icon, 'get_all')
+    data = json.loads(cache.cacheFunction(get_category_list))
+    for i in data.keys():
+        if data[i]['name'] in ['Creativity', 'Poker']:
+            item_icon = all_icon
+        else:
+            item_icon = os.path.join(addon_path, 'resources', 'icons', data[i]['icon'].split('/')[-1])
+        add_dir(data[i]['name'], 'subcategory', item_icon, 'get_subcategories', {'category_id': i})
+    add_dir('Enter Channel Name', 'get_channel', all_icon,'get_channel')
+    add_dir('Search', 'get_search', search_icon, 'get_search')
+    return end_of_dir()
+
+
+def display_subcategories(category_id, iconimage):
+    data = json.loads(cache.cacheFunction(get_category_list))
+    if len(data[category_id]['subcategories'].keys()) == 1:
+        sub_category = data[category_id]['subcategories'].keys()[0]
+        return get_channels(sub_category, category_id)
+    if len(data[category_id]['subcategories'].keys()) > 1:
+        add_dir('All', '', iconimage, 'get_channels', {'category_id': category_id})
+        items = data[category_id]['subcategories']
+        for i in items.keys():
+            info = {'category_id': category_id, 'sub_category': i}
+            add_dir(items[i]['name'], 'display_channels', iconimage, 'get_channels', info)
+        return end_of_dir()
+    return get_channels(None, category_id)
+
+
+def get_channels(sub_category, category_id, page=None):
+    url = api_url + '/stream/list.json?'
+    if category_id:
+        url += 'category=%s' %category_id
+    if sub_category:
+        url +='&subcategory=%s' %sub_category
+    if not addon.getSetting('lang') == "None":
+        url += '&language=%s' %languages[addon.getSetting('lang')]
+        if not addon.getSetting('lang1') == "None":
+            url += ',%s' %languages[addon.getSetting('lang1')]
+    if page is None:
+        page = 1
+    else:
+        page = int(page)
+    url += '&limit=20&offset=%s' %((page -1) * 20)
+    addon_log('LiveData URL: %s' %url)
+    data = make_request(url)
+    if data:
+        return display_channels(data, sub_category, category_id, page)
+
+
+def display_channels(data, sub_category, category_id, page):
+    data = json.loads(data)
+    if not isinstance(data, list):
+        addon_log('data type: %s' %type(data))
+        data = [data]
+    addon_log('json data: %s' %data)
+    addon_log('Len Data: %s' %str(len(data)))
+    addon_log('page: %s' %str(page))
+    try:
+        blacklist = json.loads(open(blacklist_file).read())
+    except:
+        blacklist = None
+    desc_keys = [
+        'video_bitrate',
+        'video_codec',
+        'audio_codec',
+        'video_height',
+        'video_width',
+        'category',
+        'subcategory',
+        'up_time',
+        'geo',
+        'meta_game',
+        'language',
+        'stream_count',
+        'channel_view_count',
+        'featured',
+        'broadcast_part',
+        'name',
+        'stream_type'
+        ]
+    for i in data:
+        if not i.has_key('channel'):
+            addon_log('No channel data: %s' %i)
+        info = {}
+
+        desc = ' | '.join(['%s: %s' %(k.replace('_', ' ').title(), i[k]) for
+                           k in desc_keys if i.has_key(k) and i[k]])
+        if desc:
+            info['plot'] = desc
+        if i.has_key('channel'):
+            if i['channel'].has_key('login') and i['channel']['login']:
+                name = i['channel']['login']
+        elif i.has_key('login') and i['login']:
+            name = i['login']
+        elif i.has_key('name') and i['name']:
+            name = i['name'].split('user_')[-1]
+        else:
+            try:
+                name = str(i['image_url_medium']).split('/')[-1].split('-')[0]
+            except:
+                addon_log('Name not found: %s' %i)
+                continue
+        if blacklist and name in blacklist:
+            addon_log('Channel: %s - Blacklisted' %name)
+            continue
+        if i.has_key('channel'):
+            if (i['channel'].has_key('status') and i['channel']['status'] and
+                    i['channel']['status'] != 'Broadcasting LIVE on Justin.tv'):
+                info['title'] = i['channel']['status']
+            elif i['channel'].has_key('title') and i['channel']['title']:
+                info['title'] = i['channel']['title']
+        elif i.has_key('title') and i['title']:
+            info['title'] = i['title']
+        else:
+            info['title'] = name
+
+        thumb = None
+        fanart = None
+        if addon.getSetting('fanart') == "true":
+            if i.has_key('channel'):
+                if i['channel'].has_key('image_url_huge') and i['channel']['image_url_huge']:
+                    fanart = i['channel']['image_url_huge']
+            elif i.has_key('image_url_huge') and i['image_url_huge']:
+                fanart = i['image_url_huge']
+            info['fanart'] = fanart
+        if addon.getSetting('use_channel_icon') == "0" and fanart:
+            thumb = fanart
+        if not thumb:
+            if i.has_key('channel'):
+                if i['channel'].has_key('screen_cap_url_large') and i['channel']['screen_cap_url_large']:
+                    thumb = i['channel']['screen_cap_url_large']
+                elif i['channel'].has_key('image_url_large') and i['channel']['image_url_large']:
+                    thumb = i['channel']['image_url_large']
+            elif i.has_key('image_url_large') and i['image_url_large']:
+                thumb = i['image_url_large']
+        if not thumb:
+            addon_log('No Thumb')
+            thumb = addon_icon
+        if not fanart:
+            addon_log('No Fanart')
+            fanart = addon_fanart
+        add_dir(name, 'play_stream', thumb, 'set_resolved_url', info, get_stream_info(i))
+
+    if not category_id == 'search':
+        page_num = None
+        if len(data) == 20:
+            if page:
+                page_num = page + 1
             else:
-                data = response.read()
-            # addon_log(str(response.info()))
-            response.close()
-        except urllib2.URLError, e:
-            data = None
-            errorStr = str(e.read())
-            addon_log('We failed to open "%s".' %url)
-            if hasattr(e, 'reason'):
-                addon_log('We failed to reach a server.')
-                addon_log('Reason: %s' %e.reason)
-            if hasattr(e, 'code'):
-                if 'archive' in url:
-                    # if the channel does not have archives we expect a 403
-                    if str(e.code) == '403':
-                        data = '403'
-                else:
-                    # xbmc.executebuiltin("XBMC.Notification(Jtv,HTTP ERROR: "+str(e.code)+",5000,"+ICON+")")
-                    addon_log('We failed with error code - %s.' %e.code)
-        return data
+                page_num = 1
+        if page_num:
+            info = {'category_id': category_id, 'sub_category': sub_category, 'page': page_num}
+            next_png = os.path.join(addon_path, 'resources', 'icons','next.png')
+            add_dir('Next Page', 'load_more_channels', next_png, 'get_channels', info)
+    return end_of_dir(True)
 
 
-def getLanguageCode(language):
-        for i in LANGUAGES.items():
-            if i[1] == language:
-                lang_code = i[0]
-                return lang_code
+def get_stream_info(item_dict):
+    stream_info = {'video_info': {}, 'audio_info': {}}
+    if item_dict.has_key('video_codec') and item_dict['video_codec']:
+        stream_info['video_info']['codec'] = item_dict['video_codec']
+    if item_dict.has_key('video_height') and item_dict['video_height']:
+        stream_info['video_info']['height'] = item_dict['video_height']
+    if item_dict.has_key('video_width') and item_dict['video_width']:
+        stream_info['video_info']['width'] = item_dict['video_width']
+    if (item_dict.has_key('audio_codec') and
+        item_dict['audio_codec'] and item_dict['audio_codec'] != '???'):
+            stream_info['audio_info']['codec'] = item_dict['audio_codec']
+    return stream_info
 
 
-def get_json():
-        url = 'http://api.justin.tv/api/category/list.json'
-        data = get_request(url)
-        return data
-
-
-def Categories():
-        if not FAV is None:
-            addDir('Favorites','',5,os.path.join(home, 'resources', 'icons','fav.png'),'','','')
-        j_user = addon.getSetting('j_user')
-        if not j_user == "":
-            addDir(j_user+' Favorites / Follows',j_user,11,os.path.join(home, 'resources', 'icons','jfav.png'),'','','')
-        addDir('All', '', 1, os.path.join(home, 'resources', 'icons','all.png'),'','',1)
-        result = cache.cacheFunction(get_json)
-        # check for cache returning a tuple from version 0.3.6
-        if isinstance(result, tuple):
-            result = result[0]
-        data = json.loads(result)
-        for i in data.keys():
-            catId = i
-            icon = os.path.join(home, 'resources', 'icons', data[i]['icon'].split('/')[-1])
-            name = data[i]['name']
-            addDir(name, '', 6, icon,catId,'','')
-        addDir('Enter Channel Name', '', 4, os.path.join(home, 'resources', 'icons','all.png'),'','','')
-        if addon.getSetting('enable_search') == 'true':
-            addDir('Search','',3,os.path.join(home, 'resources', 'icons', 'search.png'),'','','')
-        return endOfDir()
-
-
-def getSubcategories(catId, iconimage):
-        addDir('All', '', 1, iconimage,catId,'',1)
-        result = cache.cacheFunction(get_json)
-        # check for cache returning a tuple from version 0.3.6
-        if isinstance(result, tuple):
-            result = result[0]
-        data = json.loads(result)
-        for i in data[catId]['subcategories'].keys():
-            name = data[catId]['subcategories'][i]['name']
-            addDir(name, '', 1, iconimage, catId, i, 1)
-        return endOfDir()
-
-
-def getLiveData(subCat,catId,page):
-        url = 'http://api.justin.tv/api/stream/list.json?'
-        if not catId == '':
-            url += 'category='+catId
-            if not subCat == '':
-                url +='&subcategory='+subCat
-        if not addon.getSetting('lang') == "None":
-            url += '&language='+getLanguageCode(addon.getSetting('lang'))
-            if not addon.getSetting('lang1') == "None":
-                url += ','+getLanguageCode(addon.getSetting('lang1'))
-        if not page is None or page == '':
-            url += '&limit=20&offset='+str((page -1) * 20)
-        addon_log('LiveData URL: '+url)
-        data = get_request(url)
-        if data:
-            return index(data, subCat, catId, page)
-
-
-def getUser(s_user):
-        url = 'http://api.justin.tv/api/user/show/%s.json' %s_user
-        data = get_request(url)
+def get_user_data(user_name):
+    url = api_url + '/user/show/%s.json' %user_name
+    data = make_request(url)
+    if data and not data == '[]':
         addon_log('User Data: %s' %data)
         return data
 
 
-def getUserFavorites(j_user):
-        url = 'http://api.justin.tv/api/user/favorites/'+j_user+'.json?limit=100'
-        if addon.getSetting('live_only') == "true":
-            url += '&live=true'
-        data = get_request(url)
-        if data:
-            return index(data, '', '', None)
+def get_user_favorites(justin_user_name):
+    url = api_url + '/user/favorites/%s.json?limit=100' %justin_user_name
+    if addon.getSetting('live_only') == "true":
+        url += '&live=true'
+    data = make_request(url)
+    if data:
+        return display_channels(data, '', '', None)
 
 
-def index(data, subCat, catId, page):
-        data = json.loads(data)
-        addon_log('json data:')
-        addon_log(str(data))
-        addon_log('Len Data = '+str(len(data)))
-        addon_log('page = '+str(page))
-        search_ids = ['users','live']
-
-        if catId not in search_ids:
-            if len(data) == 20:
-                if not page is None:
-                    addPage = page + 1
-                else: addPage = 1
-            else: addPage = None
-
+def display_channel_archives(name, url=None):
+    if url is None:
+        url = api_url + '/channel/archives/%s.json' %name
+    responce = make_request(url)
+    next_png = os.path.join(addon_path, 'resources', 'icons','next.png')
+    if responce and responce != '[]':
+        data = json.loads(responce)
         for i in data:
-            mode = 2
-            if catId in search_ids:
-                mode = 4
-            try:
-                name = i['channel']['login']
-                if name is None or name == '': raise
-            except:
-                try:
-                    name = i['login']
-                    if name is None or name == '': raise
-                except:
-                    try:
-                        name =  i['name'].split('user_')[-1]
-                        if name is None or name == '': raise
-                    except:
-                        name = str(i['image_url_medium']).split('/')[-1].split('-')[0]
-            if name in BLACKLIST:
-                addon_log('Channel: %s - Blacklisted' %name)
-                continue
-            try:
-                subcat = i['channel']['subcategory_title']
-                if subcat is None or subcat == '': raise
-            except:
-                try:
-                    subcat = i['subcategory']
-                    if subcat is None: raise
-                except: subcat = ''
-            try:
-                title = i['channel']['status']
-                if title is None or title == '': raise
-            except:
-                try:
-                    title = i['channel']['title']
-                    if title is None or title == '': raise
-                except:
-                    try:
-                        title = i['title']
-                        if title is None or title == '': raise
-                    except: title = name
-            try: timezone = i['channel']['timezone']
-            except: timezone = ''
-            try: bitrate = str(i['video_bitrate']).split('.')[0]
-            except: bitrate = ''
-            try: views = i['channel']['views_count']
-            except:
-                try: views = i['channel_view_count']
-                except: views = ''
-            try: lang = LANGUAGES[i['language']]
-            except: lang = ''
+            info = {}
+            info['plot'] = ' | '.join(['%s: %s' %(k.replace('_', ' ').title(), i[k]) for
+                                       k in i.keys() if i[k]])
+            stream_url = i['video_file_url']
+            thumb = i['image_url_medium']
+            info['title'] = i['title']
+            if i.has_key('broadcast_part') and i['broadcast_part']:
+                info['title'] += ' - Part: %s' %i['broadcast_part']
+            if i.has_key('length') and i['length']:
+                info['duration'] = int(i['length']) / 60
+            add_dir(info['title'], stream_url, thumb, 'set_resolved_url', info, get_stream_info(i))
 
-            if addon.getSetting('fanart') == "true":
-                try:
-                    fanart = i['channel']['image_url_huge']
-                except:
-                    try: fanart = i['image_url_huge']
-                    except: fanart = os.path.join(home, 'fanart.jpg')
-                if addon.getSetting('use_channel_icon') == "0":
-                    thumb = fanart
-                else:
-                    try: thumb = i['channel']['screen_cap_url_medium']
-                    except:
-                        try: thumb = i['screen_cap_url_medium']
-                        except:
-                            try: thumb = i['image_url_medium']
-                            except: thumb = ''
+        if len(data) == 20:
+            if not 'offset=' in url:
+                url = url + '?offset=20'
             else:
-                fanart = os.path.join(home, 'fanart.jpg')
-                if addon.getSetting('use_channel_icon') == "0":
-                    try: thumb = i['channel']['image_url_medium']
-                    except:
-                        try: thumb = i['image_url_medium']
-                        except: thumb = ''
-                else:
-                    try: thumb = i['channel']['screen_cap_url_medium']
-                    except:
-                        try: thumb = i['screen_cap_url_medium']
-                        except: thumb = ''
-
-            if catId in search_ids or catId == 'channel':
-                description = ''
-                try:
-                    if i['name'] is None: raise
-                    description += '\n Name: %s' %i['name']
-                except:
-                    pass
-                try:
-                    if i['favorite_quotes'] is None: raise
-                    description += '\n %s' %i['favorite_quotes']
-                except:
-                    pass
-                try:
-                    if i['login'] is None: raise
-                    description += '\n Channel: %s' %i['login']
-                except:
-                    pass
-                try:
-                    if i['broadcaster'] is None: raise
-                    description += '\n Broadcaster: %s' %i['broadcaster']
-                except:
-                    pass
-                try:
-                    if i['location'] is None: raise
-                    description += '\n Location: %s' %i['location']
-                except:
-                    pass
-            else:
-                try: description = i['channel']['title'].encode('utf-8', 'ignore')
-                except:
-                    try: description = i['title'].encode('utf-8', 'ignore')
-                    except: description = ''
-                try: description += '\n Channel Name: '+name.encode('utf-8', 'ignore')
-                except: pass
-                try: description += '\n Timezone: '+timezone
-                except: pass
-                try: description += '\n Subcategory: '+subcat
-                except: pass
-                try: description += '\n Bitrate: '+bitrate
-                except: pass
-                try: description += '\n Language: '+lang
-                except: pass
-                try: description += '\n Views: '+views
-                except: pass
-            addLiveLink(name, title, '', mode, thumb, fanart, description)
-        if not catId in search_ids:
-            if not addPage is None:
-                if addPage > page:
-                    addDir('Next Page', '', 1, next_png, catId, subCat, addPage)
-        else:
-            if page:
-                addDir('Next Page', page, 12, next_png, '', 'users', True)
-        return endOfDir()
+                offset = int(url.split('offset=')[1])
+                url = url.split('?')[0]+'?offset=%s' %(offset + 20)
+            add_dir('Next Page', url, next_png, 'get_channel_archives')
+        return end_of_dir(True)
+    else:
+        notify('No archives found for channel: %s' %name)
 
 
-def getVideos(name, url=None, page=None):
-        if url is None:
-            url = 'http://api.justin.tv/api/channel/archives/'+name+'.json'
-
-        request = get_request(url)
-        if request is not None and request != '403':
-            data = json.loads(request)
-            for i in data:
-                try:
-                    title = i['title']
-                except KeyError:
-                    addon_log('--- KeyError ---')
-                    title = ''
-                video_url = i['video_file_url']
-                part = 'Part: '+i['broadcast_part']
-                if 'last_part' in i.keys():
-                    if i['last_part'] == 'true':
-                        part += ' - Last Part'
-                started = i['start_time']
-                created = i['created_on']
-                thumb = i['image_url_medium']
-                try:
-                    length = i['length']
-                    duration = str(int(length)/60)
-                except:
-                    duration = ''
-                desc = part+'\nStarted: '+started+'\nCreated: '+created
-                title += ' - '+part
-
-                u=sys.argv[0]+"?url="+urllib.quote_plus(video_url)+"&mode=10"
-                liz=xbmcgui.ListItem(title, iconImage="DefaultVideo.png", thumbnailImage=thumb)
-                liz.setInfo( type="Video", infoLabels={ "Title": title, "Plot": desc, "Duration": duration })
-                liz.setProperty( "Fanart_Image", fanart)
-                liz.setProperty('IsPlayable', 'true')
-                ok=xbmcplugin.addDirectoryItem(handle=int(sys.argv[1]),url=u,listitem=liz)
-
-            if len(data) == 20:
-                if page is None:
-                    page = 1
-                else:
-                    page += 1
-                url = url.split('?')[0]+'?offset='+str(page*20)
-                addDir('Next Page', url, 7, next_png, '', '', str(page))
-
-        elif request == '403':
-            xbmc.executebuiltin("XBMC.Notification(Jtv,No archives found for channel: "+name+",5000,"+ICON+")")
-        return endOfDir()
+def notify(message):
+    xbmc.executebuiltin("XBMC.Notification(Addon Notification,%s,5000,%s)"
+                        %(message, addon_icon))
 
 
-def playLive(channel_name, play=False, password=None):
-        base_url = 'http://www.justin.tv/widgets/live_embed_player.swf?channel=%s' %channel_name
-        headers = {'User-agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:19.0) Gecko/20100101 Firefox/19.0',
-                   'Referer': 'http://www.justin.tv/%s' %channel_name}
-        swf_url = get_request(base_url, headers, True)
-        headers.update({'Referer': swf_url})
-        url = 'http://usher.justin.tv/find/'+channel_name+'.json?type=any&group=&channel_subscription='
-        if not password is None:
-            url += '&private_code='+urllib.quote(password)
-        request = get_request(url, headers)
-        if request is None:
-            return setUrl('', False)
-        data = json.loads(request)
-        if data == []:
-            addon_log('No Data, jtv.find')
-            return get_hls_stream(channel_name)
-        
-        stream = getQuality(data)
-        if not stream:
-            return setUrl('', False)
-        if stream.endswith('private'):
-            if password is None:
-                password = getPassword(channel_name)
-                if password is None:
-                    password = ''
-            url += '&private_code='+urllib.quote(password)
-            request = get_request(url,headers)
-            if request is None:
-                return setUrl('', False)
-            stream = getQuality(json.loads(request), True)
-            if stream == 'Bad Password':
-                addon_log('Bad Password')
-                return setUrl('', False)
-        if stream.startswith('rtmp_key_error'):
-            addon_log('rtmp_key_error')
-            return setUrl('', False)
-        addon_log('Stream: %s' %stream)
-        swf = ' swfUrl=%s swfVfy=1 live=1' % swf_url
-        Pageurl = ' Pageurl=http://www.justin.tv/'+channel_name
-        url = stream+swf+Pageurl
-        if play == True:
-            info = xbmcgui.ListItem(channel_name)
-            playlist = xbmc.PlayList(1)
-            playlist.clear()
-            playlist.add(url, info)
-            xbmc.executebuiltin('playlist.playoffset(video,0)')
-        else:
-            return setUrl(url, True)
-
-            
-def get_hls_stream(channel_name):
+def resolve_url(channel_name, password=None):
     url = 'https://api.twitch.tv/api/channels/%s/access_token?as3=t' %channel_name
-    data = json.loads(get_request(url))
+    data = json.loads(make_request(url))
     if not data:
-        xbmc.executebuiltin("XBMC.Notification(Jtv,Live Data Not Found,5000,"+ICON+")")
-        return setUrl('', False)
+        addon_log('No Data: api.twitch.tv')
+        notify('Channel data not found')
+        return
+    token_data = json.loads(data['token'])
+    for i in token_data:
+        addon_log('%s: %s' %(i, token_data[i]))
 
+    private_code = 'null'
+    if not token_data['private']['allowed_to_view']:
+        if token_data['needed_info']:
+            addon_log('needed_info: %s' %token_data['needed_info'])
+            if 'private' in token_data['needed_info']:
+                if not password:
+                    password = get_password(channel_name)
+                private_code = urllib2.quote(password)
     params = [
         'nauthsig=%s' %data['sig'],
         'player=jtvweb',
-        'private_code=null',
+        'private_code=%s' %private_code,
         'type=any',
         'nauth=%s' %urllib2.quote(data['token']),
         'allow_source=true',
             ]
     stream_url = 'http://usher.twitch.tv/select/%s.json?' %channel_name + '&'.join(params)
-    return setUrl(stream_url, True)
-    
-            
-
-def setUrl(path, succeeded):
-        item = xbmcgui.ListItem(path=path)
-        xbmcplugin.setResolvedUrl(int(sys.argv[1]), succeeded, item)
+    return stream_url
 
 
-def getQuality(data, password=False):
-        s_type = {'0' : 'live',
-                  '1' : '720p',
-                  '2' : '480p',
-                  '3' : '360p',
-                  '4' : '240p',
-                  '5' : 'iphonehigh',
-                  '6' : 'iphonelow'}
-        q_type = s_type[addon.getSetting('stream_quality')]
-        streams = []
-        for i in data:
-            token = None
-            try:
-                token = ' jtv='+i['token'].replace('\\','\\5c').replace(' ','\\20').replace('"','\\22')
-            except KeyError:
-                needed_info = None
-                try:
-                    addon_log('Needed Info: %s' %i['needed_info'])
-                    needed_info = i['needed_info']
-                except KeyError:
-                    pass
-                if not password:
-                    if 'private' in needed_info:
-                            token = 'private'
-                else:
-                    try:
-                        if i['error'] == 'Bad Password':
-                            xbmc.executebuiltin("XBMC.Notification(Jtv,Bad Password,5000,"+ICON+")")
-                            return 'Bad Password'
-                        else:
-                            addon_log('--- Error: %s ---' %i['error'])
-                            pass
-                    except KeyError:
-                        addon_log('No error mesg.')
-                        pass
-            try:
-                rtmp = i['connect']+'/'+i['play']
-            except KeyError:
-                rtmp = 'rtmp_key_error'
-                addon_log('--- rtmp exception ---')
-            if token is not None:
-                if q_type == i['type']:
-                    addon_log('---- Stream Type: %s ----' %i['type'])
-                    return rtmp+token
-                else:
-                    streams.append((i['type'], rtmp, token))
-
-        if len(streams) < 1:
-            addon_log('----- Token Error ------')
-            return None
-        elif len(streams) == 1:
-            addon_log('---- Stream Type: %s ----' %streams[0][0])
-            return streams[0][1]+streams[0][2]
-        else:
-            path = None
-            for i in range(len(s_type)):
-                quality = s_type[str(i)]
-                for q in streams:
-                    if q[0] == quality:
-                        addon_log('---- Stream Type: %s ----' %q[0])
-                        path = q[1]+q[2]
-                        break
-                if path:
-                    break
-            return path
+def set_resolved_url(resolved_url):
+    success = False
+    if resolved_url:
+        success = True
+    else:
+        resolved_url = ''
+    item = xbmcgui.ListItem(path=resolved_url)
+    xbmcplugin.setResolvedUrl(int(sys.argv[1]), success, item)
 
 
 def loadPasswords():
-        passwords = {}
-        if addon.getSetting('save_passwords') == 'true':
-            if xbmcvfs.exists(passwords_file):
-                passwords = json.loads(open(passwords_file).read())
-        return passwords
+    passwords = {}
+    if addon.getSetting('save_passwords') == 'true':
+        if xbmcvfs.exists(passwords_file):
+            passwords = json.loads(open(passwords_file).read())
+    return passwords
 
 
 def savePasswords(passwords):
-        if addon.getSetting('save_passwords') == 'true':
-            f = open(passwords_file, "w")
-            f.write(json.dumps(passwords))
-            f.close()
+    if addon.getSetting('save_passwords') == 'true':
+        f = open(passwords_file, "w")
+        f.write(json.dumps(passwords))
+        f.close()
 
 
-def getPassword(name):
-        passwords = loadPasswords()
-        password = ''
-        if name in passwords:
-            password = passwords[name]
-        keyboard = xbmc.Keyboard(password,'Enter Password')
-        keyboard.doModal()
-        if (keyboard.isConfirmed() == False):
-            return
-        password = keyboard.getText()
-        passwords[name] = password
-        savePasswords(passwords)
-        if len(password) == 0:
-            return None
-        else:
-            return password
+def get_password(name):
+    passwords = loadPasswords()
+    password = ''
+    if name in passwords:
+        password = passwords[name]
+    keyboard = xbmc.Keyboard(password,'Enter Password')
+    keyboard.doModal()
+    if (keyboard.isConfirmed() == False):
+        return
+    password = keyboard.getText()
+    passwords[name] = password
+    savePasswords(passwords)
+    if len(password) == 0:
+        return None
+    else:
+        return password
+
+
+def add_dir(name, url, iconimage, mode, info={}, stream_info={}):
+    isfolder = True
+    fanart = addon_fanart
+    params = {'name': name, 'url': url, 'mode': mode, 'iconimage': iconimage}
+    if info.has_key('category_id') and info['category_id']:
+        params['category_id'] = info['category_id']
+    if info.has_key('sub_category') and info['sub_category']:
+        params['sub_category'] = info['sub_category']
+    if info.has_key('page'):
+        params['page'] = info['page']
+    url = '%s?%s' %(sys.argv[0], urllib.urlencode(params))
+    if info.has_key('title'):
+        title = info['title']
+    else:
+        title = name
+    listitem = xbmcgui.ListItem(title, iconImage=iconimage, thumbnailImage=iconimage)
+    if stream_info:
+        if stream_info['video_info'].keys():
+            listitem.addStreamInfo('video', stream_info['video_info'])
+        if stream_info['audio_info'].keys():
+            listitem.addStreamInfo('audio', stream_info['audio_info'])
+    if info.has_key('fanart') and info['fanart']:
+        fanart = info['fanart']
+    listitem.setProperty("Fanart_Image", fanart)
+    context_menu = []
+    if info.has_key('fav'):
+        context_menu.append(
+            ('Remove from Jtv Favorites',
+             'XBMC.RunPlugin(%s?mode=remove_fav&name=%s)'
+              %(sys.argv[0], urllib.quote(name))))
+    else:
+        context_menu.append(
+            ('Add to Jtv Favorites',
+             'XBMC.RunPlugin(%s?mode=add_favorite&params=%s&info=%s)'
+             %(sys.argv[0], urllib.quote(json.dumps(params)),
+               urllib.quote(json.dumps(info)))))
+    if mode in ['resolve_url', 'set_resolved_url']:
+        isfolder = False
+        listitem.setProperty('IsPlayable', 'true')
+        listitem.setInfo('video', infoLabels=info)
+        context_menu.append(
+            ('Get Channel Archives',
+             'XBMC.Container.Update(%s?mode=get_channel_archives&name=%s)'
+             %(sys.argv[0], urllib.quote(name))))
+        context_menu.append(
+            ('Run IrcChat',
+             "RunScript(script.ircchat,"
+             "run_irc=True&nickname=%s&username=%s&password=%s&host=%s&channel=%s)"
+             %(j_nick, j_nick, j_pass, 'irc.twitch.tv', name)))
+        context_menu.append(
+            ('Blacklist Channel','XBMC.RunPlugin(%s?mode=blacklist_channel&name=%s)'
+             %(sys.argv[0], urllib.quote(name))))
+    if mode == 'search' and name == 'Previous Search Queries':
+        context_menu.append(
+            ('Remove',
+             'XBMC.Container.Update(%s?mode=remove_query&name=%s)'
+             %(sys.argv[0], urllib.quote(name))))
+    listitem.addContextMenuItems(context_menu)
+    xbmcplugin.addDirectoryItem(int(sys.argv[1]), url, listitem, isfolder)
 
 
 def search(search_q, url=None):
-        def chooseSearchType():
-                dialog = xbmcgui.Dialog()
-                ret = dialog.select('Choose a sherch type.', ['User', 'Live'])
-                if ret == 0:
-                    return 'users'
-                else:
-                    return 'live'
-
-        s_type = None
-
-        if search_q == 'Previous Search Queries':
-            search_list = json.loads(open(search_queries).read())
-            for i in search_list:
-                # check for tuple, prior to 3.7 only the query string was saved
-                if isinstance(i, tuple) or isinstance(i, list):
-                    title = i[0]
-                    url = 'http://www.justin.tv/search?q=%s&sort-by=relevance&only=%s' %(urllib.quote_plus(i[0]), i[1])
-                else:
-                    title = i
-                    url = 'saved_search_query'
-                addDir(title,url,12,os.path.join(home, 'resources', 'icons', 'search.png'),'','','',True)
-            return endOfDir()
-
-        elif search_q == 'New Search':
-            searchStr = ''
-            keyboard = xbmc.Keyboard(searchStr,'Search')
-            keyboard.doModal()
-            if (keyboard.isConfirmed() == False):
-                return
-            search_q = keyboard.getText()
-            if len(search_q) == 0:
-                return
-            s_type = chooseSearchType()
-            if addon.getSetting('save_search') == 'true':
-                search_file = xbmcvfs.exists(search_queries)
-                if not search_file:
-                    search_file = xbmc.makeLegalFilename(search_queries)
-                    search_list = []
-                else:
-                    search_list = json.loads(open(search_queries).read())
-                search_list.append((search_q, s_type))
-                a = open(search_queries, "w")
-                a.write(json.dumps(search_list))
-                a.close()
-            url = 'http://www.justin.tv/search?q=%s&sort-by=relevance&only=%s' %(urllib.quote_plus(search_q), s_type)
-
-        if url == 'saved_search_query':
-            s_type = chooseSearchType()
-            url = 'http://www.justin.tv/search?q=%s&sort-by=relevance&only=%s' %(urllib.quote_plus(search_q), s_type)
-
-        if s_type is None:
-            if 'only=live' in url:
-                s_type = 'live'
-            else:
-                s_type = 'users'
-
-        addon_log('Search URL: '+url)
-        page = None
-        data = get_request(url)
-        soup = BeautifulSoup(data, convertEntities=BeautifulSoup.HTML_ENTITIES)
-        items = soup.findAll('span', attrs={'class': 'small black'})
-        user_list = []
-        for i in items:
-            user = None
-            title = None
-            try:
-                title = i.findPrevious('a', attrs={'class': 'title broadcast-title'}).string
-            except:
-                pass
-            try:
-                user = json.loads(getUser(i.string))
-            except:
-                addon_log('getUser excemption: %s' %i.string)
-            if user is None:
-                user = {'login': i.string}
-            if title:
-                user.update({'title': title})
-            user_list.append(user)
-            xbmc.sleep(200)
-
-        if soup.find('span', attrs={'class': "prev_next next"}):
-            try:
-                page = soup.find('span', attrs={'class': "prev_next next"}).a['href']
-            except:
-                pass
-            if page:
-                if 'page=1' in page:
-                    page = None
-                else:
-                    if ('only=%s' %s_type) in page:
-                        page = 'http://www.justin.tv'+page
-                    else:
-                        addon_log('page does not match search type ???')
-                        page = ('http://www.justin.tv'+page.replace('only=all', 'only=%s' %s_type)
-                                .replace('only=live', 'only=%s' %s_type).replace('only=users', 'only=%s' %s_type))
-        if len(user_list) > 0:
-            return index(json.dumps(user_list), '', s_type, page)
-        else:
-            return xbmc.executebuiltin("XBMC.Notification(Jtv,No Results for: "+search_q+",5000,"+ICON+")")
-
-
-def remove_search(name):
+    if search_q == 'Previous Search Queries':
+        search_icon = os.path.join(addon_path, 'resources', 'icons', 'search.png')
         search_list = json.loads(open(search_queries).read())
-        for index in range(len(search_list)):
-            if name in search_list[index]:
-                del search_list[index]
-                a = open(search_queries, "w")
-                a.write(json.dumps(search_list))
-                a.close()
-                return xbmc.executebuiltin('Container.Refresh')
-
-
-def get_search():
-        search_file = xbmcvfs.exists(search_queries)
-        if search_file:
-            addDir('New Search','',12,os.path.join(home, 'resources', 'icons', 'search.png'),'','','')
-            addDir('Previous Search Queries','',12,os.path.join(home, 'resources', 'icons', 'search.png'),'','','')
-            return endOfDir()
-        else:
-            return search('New Search')
-
-
-def enterChannel(channel_name):
-        if name == 'Enter Channel Name':
-            searchStr = ''
-            keyboard = xbmc.Keyboard(searchStr,'Channel Name')
-            keyboard.doModal()
-            if (keyboard.isConfirmed() == False):
-                return
-            channel_name = keyboard.getText()
-            if len(channel_name) == 0:
-                return
-            user_data = getUser(channel_name)
-            if user_data:
-                s_user = json.loads(user_data)
-                return index(json.dumps([s_user]), None, 'channel', None)
+        for i in search_list:
+            addon_log('search type: %s' %type(i))
+            if isinstance(i, list):
+                # prior to 4.0 will return a list
+                title = i[0]
             else:
-                return xbmc.executebuiltin("XBMC.Notification(Jtv,Did not find channel: "+channel_name+",5000,"+ICON+")")
+                title = i
+            add_dir(title, 'saved_search_query', search_icon, 'search')
+        return end_of_dir()
 
-        url = 'http://api.justin.tv/api/stream/list.json?channel='+channel_name
-        data = get_request(url)
-        if data is None or data == '[]':
-            xbmc.executebuiltin("XBMC.Notification(Jtv,No live stream found for "+channel_name+",5000,"+ICON+")")
-            xbmc.sleep(3000)
-            return getVideos(channel_name)
-        else:
-            return index(data, None, None, None)
-
-
-def getFavorites():
-        for i in json.loads(FAV):
-            name = i[0]
-            thumb = i[1]
-            title = i[2]
-            addLiveLink(name,title,'',2,thumb,thumb,'')
-        return endOfDir()
-
-
-def addFavorite(name,thumb,title):
-        keyboard = xbmc.Keyboard(title,'Rename?')
+    elif search_q == 'New Search':
+        keyboard = xbmc.Keyboard('','Search')
         keyboard.doModal()
         if (keyboard.isConfirmed() == False):
             return
-        newTitle = keyboard.getText()
-        if len(newTitle) == 0:
+        search_q = keyboard.getText()
+        if len(search_q) == 0:
             return
-        else:
-            title = newTitle
-        if not FAV is None:
-            data = json.loads(FAV)
-            data.append((name,thumb,title))
-            a = open(favorites, "w")
-            a.write(json.dumps(data))
+        if addon.getSetting('save_search') == 'true':
+            search_file = xbmcvfs.exists(search_queries)
+            if not search_file:
+                search_list = []
+            else:
+                search_list = json.loads(open(search_queries).read())
+            search_list.append(search_q)
+            a = open(search_queries, "w")
+            a.write(json.dumps(search_list))
             a.close()
+
+    url = 'http://api.justin.tv/api/stream/search/%s.json' %urllib.quote(search_q)
+    addon_log('Search URL: '+url)
+    data = make_request(url)
+    if data:
+        return display_channels(data, sub_category, category_id, None)
+    else:
+        return notify('No Results for: %s' %search_q)
+
+
+def remove_search(name):
+    search_list = json.loads(open(search_queries).read())
+    for i in range(len(search_list)):
+        if name in search_list[i]:
+            del search_list[i]
+            a = open(search_queries, "w")
+            a.write(json.dumps(search_list))
+            a.close()
+            return xbmc.executebuiltin('Container.Refresh')
+
+
+def get_search():
+    if addon.getSetting('save_search') == 'true':
+        search_file = xbmcvfs.exists(search_queries)
+        if search_file:
+            search_icon = os.path.join(addon_path, 'resources', 'icons', 'search.png')
+            add_dir('New Search', 'new_search', search_icon, 'search')
+            add_dir('Previous Search Queries', 'previous_search', search_icon, 'search')
+            return end_of_dir()
+    else:
+        return search('New Search')
+
+
+def get_channel(channel_name, play=False, password=None):
+    if channel_name == 'Enter Channel Name':
+        keyboard = xbmc.Keyboard('','Channel Name')
+        keyboard.doModal()
+        if (keyboard.isConfirmed() == False):
+            return
+        channel_name = keyboard.getText()
+        if len(channel_name) == 0:
+            return
+
+    user_data = get_user_data(channel_name)
+    if not user_data:
+        return notify('Did not find channel: %s' %channel_name)
+
+    url = api_url + '/stream/list.json?channel=%s' %channel_name
+    data = make_request(url)
+    if not data or data == '[]':
+        display_channels(user_data, None, 'channel', None)
+        dialog = xbmcgui.Dialog()
+        ret = dialog.yesno('%s is a valid channel' %channel_name,
+                           'The channel does not seem to be live\n',
+                           'Do you want to check for archives?')
+        if ret:
+            return display_channel_archives(channel_name, password)
+    else:
+        if play == 'player':
+            return xbmc.Player().play(resolve_url(channel_name, password))
+        elif play:
+            return set_resolved_url(resolve_url(channel_name, password))
+        return display_channels(data, None, 'channel', None)
+
+
+def display_favorites():
+    favorites_list = open(favorites_file).read()
+    for i in json.loads(favorites_list):
+        if isinstance(i[0], dict):
+            i[1]['fav'] = True
+            add_dir(i[0]['name'], i[0]['url'], i[0]['iconimage'], i[0]['mode'], i[1])
         else:
-            favorites_file = xbmcvfs.exists(favorites)
-            if not favorites_file:
-                favorites_file = xbmc.makeLegalFilename(favorites)
+            # pre version 0.4 favorite
+            info = {'title': i[2].encode('utf-8'), 'fav': True}
+            add_dir(i[0], 'get_channel', i[1], 'get_channel', info)
+    return end_of_dir(True)
+
+
+def add_favorite(params, info):
+    info = json.loads(info)
+    params = json.loads(params)
+    if info.has_key('title'):
+        title = info['title']
+    else:
+        title = params['name']
+    keyboard = xbmc.Keyboard(title, 'Rename?')
+    keyboard.doModal()
+    if (keyboard.isConfirmed() == False):
+        return
+    title = keyboard.getText()
+    if len(title) == 0:
+        return
+    info['title'] = title
+    if xbmcvfs.exists(favorites_file):
+        favorites_list = open(favorites_file).read()
+        if favorites_list:
+            fav_list = json.loads(favorites_list)
+        else:
             fav_list = []
-            fav_list.append((name,thumb,title))
-            a = open(favorites, "w")
-            a.write(json.dumps(fav_list))
-            a.close()
+    else:
+        fav_list = []
+    fav_list.append((params, info))
+    a = open(favorites_file, "w")
+    a.write(json.dumps(fav_list))
+    a.close()
 
 
-def rmFavorite(name):
-        data = json.loads(FAV)
-        for index in range(len(data)):
-            if data[index][0]==name:
-                del data[index]
-                a = open(favorites, "w")
-                a.write(json.dumps(data))
-                a.close()
-                return xbmc.executebuiltin('Container.Refresh')
+def remove_favorite(name):
+    data = json.loads(favorites_list)
+    for i in range(len(data)):
+        if isinstance(data[i][0], dict):
+            if name in data[i][0]['name']:
+                del data[i]
+                break
+        elif name in data[i]:
+            del data[i]
+            break
+    a = open(favorites_file, "w")
+    a.write(json.dumps(data))
+    a.close()
+    return xbmc.executebuiltin('Container.Refresh')
 
 
-def addToBlacklist(name):
-        blacklist_ = xbmcvfs.exists(blacklist)
-        if not blacklist_:
-            blacklist_file = xbmc.makeLegalFilename(blacklist)
-            black_list = []
-        else:
-            black_list = json.loads(open(blacklist, "r").read())
-        black_list.append(name)
-        f = open(blacklist, "w")
-        f.write(json.dumps(black_list))
-        f.close
-        return xbmc.executebuiltin('Container.Refresh')
+def blacklist_channel(name):
+    blacklist_ = xbmcvfs.exists(blacklist_file)
+    if not blacklist_:
+        black_list = []
+    else:
+        black_list = json.loads(open(blacklist_file, "r").read())
+    black_list.append(name)
+    f = open(blacklist_file, "w")
+    f.write(json.dumps(black_list))
+    f.close
+    return xbmc.executebuiltin('Container.Refresh')
 
 
 def get_params():
-        param=[]
-        paramstring=sys.argv[2]
-        if len(paramstring)>=2:
-            params=sys.argv[2]
-            cleanedparams=params.replace('?','')
-            if (params[len(params)-1]=='/'):
-                params=params[0:len(params)-2]
-            pairsofparams=cleanedparams.split('&')
-            param={}
-            for i in range(len(pairsofparams)):
-                splitparams={}
-                splitparams=pairsofparams[i].split('=')
-                if (len(splitparams))==2:
-                    param[splitparams[0]]=splitparams[1]
-        return param
+    p = parse_qs(sys.argv[2][1:])
+    for i in p.keys():
+        p[i] = p[i][0]
+    return p
 
 
-def addDir(name,url,mode,iconimage,catId,subCat,page,showcontext=False):
-        u=(sys.argv[0]+"?url="+urllib.quote_plus(url)+"&mode="+str(mode)+"&page="+str(page)+
-           "&name="+urllib.quote_plus(name)+"&catId="+urllib.quote_plus(catId)+"&subCat="+urllib.quote_plus(subCat)+
-           "&iconimage="+urllib.quote_plus(iconimage))
-        ok=True
-        liz=xbmcgui.ListItem(name, iconImage="DefaultFolder.png", thumbnailImage=iconimage)
-        liz.setInfo( type="Video", infoLabels={ "Title": name } )
-        liz.setProperty( "Fanart_Image", fanart )
-        if showcontext:
-            if name in SEARCH_LIST:
-                contextMenu = [('Remove','XBMC.Container.Update(%s?mode=13&name=%s)' %(sys.argv[0], urllib.quote_plus(name)))]
-                liz.addContextMenuItems(contextMenu)
-        ok=xbmcplugin.addDirectoryItem(handle=int(sys.argv[1]),url=u,listitem=liz,isFolder=True)
-        return ok
+def set_view_mode():
+    view_modes = {
+        '0': '502', # List
+        '1': '51', # Big List
+        '2': '500', # Thumbnails
+        '3': '501', # Poster Wrap
+        '4': '508', # Fanart
+        '5': '504',  # Media info
+        '6': '503',  # Media info 2
+        '7': '515'  # Media info 3
+        }
+    view_mode = addon.getSetting('view_mode')
+    if view_mode == '8':
+        return
+    xbmc.executebuiltin('Container.SetViewMode(%s)' %view_modes[view_mode])
 
 
-def addLiveLink(name,title,url,mode,iconimage,fanart,description,showcontext=True):
-        u=sys.argv[0]+"?url="+urllib.quote_plus(url)+"&mode="+str(mode)+"&name="+urllib.quote_plus(name)+"&iconimage="+urllib.quote_plus(iconimage)
-        ok=True
-        liz=xbmcgui.ListItem(title, iconImage="DefaultFolder.png", thumbnailImage=iconimage)
-        liz.setInfo(type="Video", infoLabels={"Title": title, "Plot": description})
-        liz.setProperty("Fanart_Image", fanart)
-        liz.setProperty('IsPlayable', 'true')
-        contextMenu = []
-        if showcontext:
-            if FAV:
-                if name in FAV:
-                    contextMenu.append(('Remove from Jtv Favorites','XBMC.RunPlugin(%s?mode=9&name=%s)'
-                                        %(sys.argv[0], urllib.quote_plus(name))))
-                else:
-                    contextMenu.append(('Add to Jtv Favorites','XBMC.RunPlugin(%s?mode=8&name=%s&iconimage=%s&title=%s)'
-                                        %(sys.argv[0], urllib.quote_plus(name), urllib.quote_plus(fanart),
-                                        urllib.quote_plus(title.encode('utf-8','ignore')))))
-            else:
-                contextMenu.append(('Add to Jtv Favorites','XBMC.RunPlugin(%s?mode=8&name=%s&iconimage=%s&title=%s)'
-                                    %(sys.argv[0], urllib.quote_plus(name), urllib.quote_plus(fanart),
-                                    urllib.quote_plus(title.encode('utf-8','ignore')))))
-            contextMenu.append(('Get Channel Archives','XBMC.Container.Update(%s?mode=7&name=%s)'
-                %(sys.argv[0], urllib.quote_plus(name))))
-            contextMenu.append(('Run IrcChat', "RunScript(script.ircchat,"
-                "run_irc=True&nickname=%s&username=%s&password=%s&host=%s&channel=%s)"
-                %(j_nick, j_nick, j_pass, name+'.jtvirc.com', name)))
-            contextMenu.append(('Blacklist Channel','XBMC.RunPlugin(%s?mode=14&name=%s)' %(sys.argv[0], urllib.quote_plus(name))))
-        liz.addContextMenuItems(contextMenu)
-        ok=xbmcplugin.addDirectoryItem(handle=int(sys.argv[1]),url=u,listitem=liz)
-        return ok
-
-
-def setViewMode():
-        if not addon.getSetting('view_mode') == "0":
-            try:
-            # if (xbmc.getSkinDir() == "skin.confluence"):
-                if addon.getSetting('view_mode') == "1": # List
-                    xbmc.executebuiltin('Container.SetViewMode(502)')
-                elif addon.getSetting('view_mode') == "2": # Big List
-                    xbmc.executebuiltin('Container.SetViewMode(51)')
-                elif addon.getSetting('view_mode') == "3": # Thumbnails
-                    xbmc.executebuiltin('Container.SetViewMode(500)')
-                elif addon.getSetting('view_mode') == "4": # Poster Wrap
-                    xbmc.executebuiltin('Container.SetViewMode(501)')
-                elif addon.getSetting('view_mode') == "5": # Fanart
-                    xbmc.executebuiltin('Container.SetViewMode(508)')
-                elif addon.getSetting('view_mode') == "6":  # Media info
-                    xbmc.executebuiltin('Container.SetViewMode(504)')
-                elif addon.getSetting('view_mode') == "7": # Media info 2
-                    xbmc.executebuiltin('Container.SetViewMode(503)')
-                elif addon.getSetting('view_mode') == "8": # Media info 3
-                    xbmc.executebuiltin('Container.SetViewMode(515)')
-            except:
-                addon_log("SetViewMode Failed: "+addon.getSetting('view_mode'))
-                addon_log("Skin: "+xbmc.getSkinDir())
-
-def endOfDir():
-        try:
-            xbmcplugin.addSortMethod(int(sys.argv[1]), xbmcplugin.SORT_METHOD_UNSORTED)
-        except:
-            pass
-        try:
-            xbmcplugin.addSortMethod(int(sys.argv[1]), xbmcplugin.SORT_METHOD_LABEL)
-        except:
-            pass
+def end_of_dir(set_content=False):
+    xbmcplugin.addSortMethod(int(sys.argv[1]), xbmcplugin.SORT_METHOD_UNSORTED)
+    xbmcplugin.addSortMethod(int(sys.argv[1]), xbmcplugin.SORT_METHOD_LABEL)
+    if set_content:
         xbmcplugin.setContent(int(sys.argv[1]), 'movies')
-        xbmcplugin.endOfDirectory(int(sys.argv[1]))
+        set_view_mode()
+    xbmcplugin.endOfDirectory(int(sys.argv[1]))
 
 
-params=get_params()
+params = get_params()
+addon_log("params: %s" %params)
+try:
+    mode = params['mode']
+except:
+    mode = None
 
-url=None
-name=None
-mode=None
-catId=''
-subCat=''
-page=None
-play=False
-password=None
+if mode == None:
+    display_main_dir()
 
-try:
-    url=urllib.unquote_plus(params["url"])
-except:
-    pass
-try:
-    name=urllib.unquote_plus(params["name"])
-except:
-    pass
-try:
-    title=urllib.unquote_plus(params["title"])
-except:
-    pass
-try:
-    catId=urllib.unquote_plus(params["catId"])
-except:
-    pass
-try:
-    subCat=urllib.unquote_plus(params["subCat"])
-except:
-    pass
-try:
-    iconimage=urllib.unquote_plus(params["iconimage"])
-except:
-    pass
-try:
-    mode=int(params["mode"])
-except:
-    pass
-try:
-    page=int(params["page"])
-except:
-    pass
-try:
-    play=eval(params["play"])
-except:
-    pass
-try:
-    password=params["password"]
-except:
-    pass
+elif mode == 'get_all':
+    get_channels(None, None)
 
-addon_log("Mode: "+str(mode))
-addon_log("URL: "+str(url))
-addon_log("Name: "+str(name))
+elif mode == 'get_subcategories':
+    display_subcategories(params['category_id'], params['iconimage'])
 
-if mode==None:
-    Categories()
+elif mode == 'get_channels':
+    page = None
+    sub_category = None
+    if params.has_key('page'):
+        page = params['page']
+    if params.has_key('sub_category'):
+        sub_category = params['sub_category']
+    get_channels(sub_category, params['category_id'], page)
 
-elif mode==1:
-    getLiveData(subCat,catId,page)
-    setViewMode()
-
-elif mode==2:
-    playLive(name, play, password)
+elif mode == 'set_resolved_url':
+    set_resolved_url(resolve_url(params['name']))
     xbmc.sleep(3000)
     if addon.getSetting('run_chat') == 'true':
         xbmc.executebuiltin(
             "RunScript(script.ircchat,"
             "run_irc=True&nickname=%s&username=%s&password=%s&host=%s&channel=%s)"
-            %(j_nick, j_nick, j_pass, name+'.jtvirc.com', name))
+            %(j_nick, j_nick, j_pass, 'irc.twitch.tv', params['name']))
 
-elif mode==3:
+elif mode == 'get_search':
     get_search()
 
-elif mode==4:
-    enterChannel(name)
+elif mode == 'get_channel':
+    play = False
+    if params.has_key('play') and params['play']:
+        play = params['play']
+    password = False
+    if params.has_key('password') and params['password']:
+        password = params['password']
+    get_channel(params['name'], play, password)
 
-elif mode==5:
-    getFavorites()
-    setViewMode()
+elif mode == 'get_favorites':
+    display_favorites()
 
-elif mode==6:
-    getSubcategories(catId, iconimage)
+elif mode == 'get_channel_archives':
+    url = None
+    if params.has_key('url'):
+        url = params['url']
+    display_channel_archives(params['name'], url)
 
-elif mode==7:
-    getVideos(name, url, page)
-    setViewMode()
+elif mode == 'add_favorite':
+    add_favorite(params['params'], params['info'])
 
-elif mode==8:
-    addFavorite(name,iconimage,title)
+elif mode == 'remove_fav':
+    remove_favorite(params['name'])
 
-elif mode==9:
-    rmFavorite(name)
+elif mode == 'set_resolved_url':
+    set_resolved_url(params['url'])
 
-elif mode==10:
-    setUrl(url, True)
+elif mode == 'get_justin_favorites':
+    get_user_favorites(params['url'])
 
-elif mode==11:
-    getUserFavorites(url)
-    setViewMode()
+elif mode == 'search':
+    search(params['name'], params['url'])
 
-elif mode==12:
-    search(name, url)
-    setViewMode()
+elif mode == 'remove_query':
+    remove_search(params['name'])
 
-elif mode==13:
-    remove_search(name)
-
-elif mode==14:
-    addToBlacklist(name)
+elif mode == 'blacklist_channel':
+    blacklist_channel(params['name'])
