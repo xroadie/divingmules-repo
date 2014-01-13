@@ -1,3 +1,6 @@
+Version 0.4.0
+code overhaul
+
 Version 0.3.9
 added initial support for hls streams
 update python version for Gotham compatibility
