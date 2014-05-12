@@ -482,6 +482,14 @@ def getItems(items,fanart):
                             regexs[i('name')[0].string]['agent'] = i('agent')[0].string
                         except:
                             addon_log("Regex: -- No User Agent --")
+                        try:
+                            regexs[i('name')[0].string]['data'] = i('data')[0].string
+                        except:
+                            addon_log("Regex: -- No data --")
+                        try:
+                            regexs[i('name')[0].string]['function'] = i('function')[0].string
+                        except:
+                            addon_log("Regex: -- No function --")
                     regexs = urllib.quote(repr(regexs))
                 except:
                     regexs = None
@@ -515,20 +523,39 @@ def getRegexParsed(regexs, url):
                 if m['page'] in cachedPages:
                     link = cachedPages[m['page']]
                 else:
+                    addon_log('get regexs: %s' %m['page'])
                     req = urllib2.Request(m['page'])
                     req.add_header('User-Agent', 'Mozilla/5.0 (Windows NT 6.1; rv:14.0) Gecko/20100101 Firefox/14.0.1')
                     if 'refer' in m:
                         req.add_header('Referer', m['refer'])
                     if 'agent' in m:
                         req.add_header('User-agent', m['agent'])
-                    response = urllib2.urlopen(req)
-                    link = response.read()
-                    response.close()
+                    if 'data' in m:
+                        req.add_data(m['data'])
+                    if m.has_key('function') and m['function'] == 'NoRedirection':
+                        addon_log('regex function NoRedirection')
+                        opener = urllib2.build_opener(NoRedirection)
+                        urllib2.install_opener(opener)
+                        link = urllib2.urlopen(req)
+                    else:
+                        response = urllib2.urlopen(req)
+                        link = response.read()
+                        response.close()
                     cachedPages[m['page']] = link
                 reg = re.compile(m['expre']).search(link)
-                url = url.replace("$doregex[" + k + "]", reg.group(1).strip())
+                data = reg.group(1).strip()
+                if m.has_key('function') and m['function'] == 'unquote':
+                    data = urllib.unquote(data)
+                    addon_log('Reg urllib.unquote(data): %s' %data)
+                addon_log('Reg data: %s' %data)
+                url = url.replace("$doregex[" + k + "]", data)
         item = xbmcgui.ListItem(path=url)
         xbmcplugin.setResolvedUrl(int(sys.argv[1]), True, item)
+        
+class NoRedirection(urllib2.HTTPErrorProcessor):
+
+    def http_response(self, request, response):
+        return str(response.info())
 
 
 def get_params():
